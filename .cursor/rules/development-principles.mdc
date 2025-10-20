@@ -1,0 +1,64 @@
+---
+description: Development principles and best practices for writing high-quality, maintainable code.
+alwaysApply: true
+---
+
+## Command Execution
+- Use `python3` when running Python commands, never `python`
+- When tests need to be run, EXECUTE the command rather than telling the user to type it
+- Always `cd` to absolute directory paths to avoid relative path confusion when running commands. Use popd and pushd in scripts or Makefiles. 
+
+## Code Quality Principles
+
+### Keep It Simple and Explicit
+- Follow KISS principle - Keep it Simple, Stupid
+- Avoid unnecessary complexity; prefer clear, straightforward solutions
+- Write code that reads like a story - easy to understand for future maintainers
+- Explicit is better than implicit (Zen of Python)
+
+### Design for Maintainability
+- Prioritize readability over cleverness
+- Use meaningful names and keep functions/classes small
+- The program should be easy to read and maintainable by humans, not just pass tests
+- Beauty Works Better - thoughtful, purposeful code that considers the consumer
+
+### Testing Excellence
+- Strive for high test coverage to ensure maintainability and prevent regressions
+- When changing functionality, adjust current tests accordingly
+- If removing functionality, remove relevant tests (but not to hide evidence!)
+- Add debugging context: logs, verbosity, print statements when tests fail unexpectedly
+
+## API Development Standards
+
+### Fail Fast and Explicitly
+- Use assertions, logging, and exceptions to catch errors early
+- Avoid silently handling failures unless necessary
+- Validate inputs at boundaries (API endpoints, DB queries)
+
+### Security by Default
+- Secure defaults: avoid relying on users to configure security
+- Handle sensitive data properly: hashing, encryption, least privilege
+- Assume input is untrusted - sanitize and validate rigorously
+
+### Performance Without Premature Optimization
+- Use efficient algorithms and data structures, but don't optimize blindly
+- Profile before optimizing
+- Keep an eye on database queries - minimize unnecessary fetches
+
+## Code Organization
+
+### Prefer Composition Over Inheritance
+- Avoid deep inheritance trees in object-oriented design
+- Use dependency injection and mixins where appropriate
+
+### Minimize Side Effects
+- Favor pure functions where possible
+- When side effects are necessary, isolate them (separate data processing from I/O)
+
+### Make It Predictable
+- Avoid magic - code should behave as expected without hidden side effects
+- Favor deterministic behavior over randomness when possible
+- Ensure function signatures and return types are clear
+
+### Markdown docs
+- Don't create markdown documents unless I explicitly ask for them

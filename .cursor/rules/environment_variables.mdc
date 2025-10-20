@@ -1,0 +1,254 @@
+---
+description: Environment variable management and requirements
+alwaysApply: false
+---
+# Environment Variable Management
+
+## **Required Environment Variables**
+
+These variables are exported by `set_env_vars.sh` after Terraform deployment:
+
+- **`EC2_IP`** - Public IP of DNS C2 server (e.g., `13.222.184.122`)
+- **`DOMAIN`** - DNS domain for C2 (e.g., `c2.bt-research-control.com`)
+- **`EC2_INSTANCE_ID`** - For AWS SSM access (e.g., `i-03276574a93670cb2`)
+- **`S3_BUCKET`** - S3 bucket name (e.g., `agentcore-hacking`)
+
+## **Export Process**
+
+### **After Terraform Deployment**
+```bash
+# Always run after terraform apply
+source set_env_vars.sh
+```
+
+### **What It Does**
+```bash
+#!/bin/bash
+# Export Terraform outputs as environment variables
+
+echo "✓ Exporting Terraform environment variables..."
+
+pushd terraform > /dev/null
+
+export EC2_INSTANCE_ID=$(terraform output -raw instance_id)
+export EC2_IP=$(terraform output -raw instance_public_ip)
+export S3_BUCKET=$(terraform output -raw s3_bucket)
+export DOMAIN=$(terraform output -raw c2_fqdn)
+
+popd > /dev/null
+
+echo "  EC2_INSTANCE_ID=$EC2_INSTANCE_ID"
+echo "  EC2_IP=$EC2_IP"
+echo "  S3_BUCKET=$S3_BUCKET"
+echo "  DOMAIN=$DOMAIN"
+echo "✓ Done. Environment variables set."
+```
+
+## **Validation**
+
+### **Check Variables Are Set**
+```bash
+# Before running operations, verify variables exist
+if [ -z "$EC2_IP" ] || [ -z "$DOMAIN" ]; then
+    echo "Error: Required environment variables not set"
+    echo "Please run: source set_env_vars.sh"
+    exit 1
+fi
+```
+
+### **Display Current Values**
+```bash
+# Verify variables are set correctly
+echo "EC2_IP: $EC2_IP"
+echo "DOMAIN: $DOMAIN"
+echo "S3_BUCKET: $S3_BUCKET"
+echo "EC2_INSTANCE_ID: $EC2_INSTANCE_ID"
+```
+
+## **Usage in Scripts**
+
+### **Shell Scripts** (`scripts/*.sh`)
+```bash
+#!/bin/bash
+
+# Check required variables
+if [ -z "$EC2_INSTANCE_ID" ]; then
+    echo "Error: EC2_INSTANCE_ID not set"
+    echo "Run: source set_env_vars.sh"
+    exit 1
+fi
+
+# Use variables
+aws ssm start-session --target $EC2_INSTANCE_ID
+```
+
+### **Makefile Targets**
+```makefile
+configure-ec2:
+	@if [ -z "$$EC2_INSTANCE_ID" ]; then \
+		echo "Error: Required environment variables not set"; \
+		echo "Please run: source set_env_vars.sh"; \
+		exit 1; \
+	fi
+	@echo "Configuring EC2 instance: $$EC2_INSTANCE_ID"
+	./scripts/configure_ec2.sh
+```
+
+### **Python Scripts**
+```python
+import os
+import sys
+
+# Check required variables
+required_vars = ['EC2_IP', 'DOMAIN', 'S3_BUCKET']
+missing = [var for var in required_vars if not os.getenv(var)]
+
+if missing:
+    print(f"Error: Missing environment variables: {', '.join(missing)}")
+    print("Please run: source set_env_vars.sh")
+    sys.exit(1)
+
+# Use variables
+ec2_ip = os.getenv('EC2_IP')
+domain = os.getenv('DOMAIN')
+```
+
+## **When to Re-Export**
+
+### **Always Re-Export After:**
+1. **Terraform apply** - Infrastructure changes may update values
+2. **Terraform destroy + apply** - New resources get new IDs/IPs
+3. **EC2 instance recreation** - New instance ID and IP
+4. **Opening new terminal** - Variables don't persist across sessions
+
+### **Example Workflow**
+```bash
+# 1. Deploy infrastructure
+make terraform-yolo
+
+# 2. Export variables (REQUIRED)
+source set_env_vars.sh
+
+# 3. Configure EC2
+make configure-ec2
+
+# 4. Start operator
+make operator
+```
+
+## **Common Issues**
+
+### **Variables Not Set**
+```bash
+# Problem: Commands fail with "command not found" or empty values
+# Solution: Source the script (don't execute it)
+
+# ❌ WRONG: Executes in subshell, variables don't persist
+./set_env_vars.sh
+
+# ✅ CORRECT: Sources in current shell, variables persist
+source set_env_vars.sh
+```
+
+### **Variables Lost After Terminal Close**
+```bash
+# Problem: Variables disappear when terminal closes
+# Solution: Re-source after opening new terminal
+
+# In new terminal:
+cd /path/to/project
+source set_env_vars.sh
+```
+
+### **Stale Values After Infrastructure Changes**
+```bash
+# Problem: Variables point to old/destroyed resources
+# Solution: Re-source after any Terraform changes
+
+make terraform-yolo
+source set_env_vars.sh  # Get new values
+```
+
+## **Security Considerations**
+
+### **Sensitive Values**
+- **Don't commit** `.env` files with actual values
+- **Don't hardcode** IPs or IDs in scripts
+- **Use Terraform outputs** as single source of truth
+- **Rotate values** after testing (destroy/recreate)
+
+### **Access Control**
+- **EC2_INSTANCE_ID**: Requires AWS credentials with SSM access
+- **S3_BUCKET**: Requires AWS credentials with S3 access
+- **EC2_IP**: Public IP, but ports restricted by security groups
+
+## **Debugging**
+
+### **Check Terraform Outputs**
+```bash
+cd terraform
+terraform output
+```
+
+### **Verify Variable Export**
+```bash
+# After sourcing, check each variable
+echo "EC2_IP: ${EC2_IP:-NOT SET}"
+echo "DOMAIN: ${DOMAIN:-NOT SET}"
+echo "S3_BUCKET: ${S3_BUCKET:-NOT SET}"
+echo "EC2_INSTANCE_ID: ${EC2_INSTANCE_ID:-NOT SET}"
+```
+
+### **Test Variable Usage**
+```bash
+# Test DNS resolution with variable
+dig @$EC2_IP cmd.test.c2.$DOMAIN +short
+
+# Test AWS SSM with variable
+aws ssm start-session --target $EC2_INSTANCE_ID
+```
+
+## **Best Practices**
+
+### **Script Robustness**
+```bash
+#!/bin/bash
+set -euo pipefail  # Exit on error, undefined vars, pipe failures
+
+# Validate all required variables
+: "${EC2_IP:?Error: EC2_IP not set}"
+: "${DOMAIN:?Error: DOMAIN not set}"
+: "${EC2_INSTANCE_ID:?Error: EC2_INSTANCE_ID not set}"
+
+# Now safe to use variables
+echo "Connecting to $EC2_IP..."
+```
+
+### **Makefile Checks**
+```makefile
+.PHONY: check-env
+check-env:
+	@if [ -z "$$EC2_IP" ] || [ -z "$$DOMAIN" ]; then \
+		echo "❌ Environment variables not set"; \
+		echo "Run: source set_env_vars.sh"; \
+		exit 1; \
+	fi
+	@echo "✅ Environment variables OK"
+
+# Use as dependency
+configure-ec2: check-env
+	./scripts/configure_ec2.sh
+```
+
+### **Documentation**
+Always include in README/docs:
+- **When to source** `set_env_vars.sh`
+- **What variables are required** for each operation
+- **How to verify** variables are set correctly
+
+## **Related Documentation**
+
+- [set_env_vars.sh](mdc:set_env_vars.sh) - Environment variable export script
+- [terraform/outputs.tf](mdc:terraform/outputs.tf) - Terraform output definitions
+- [scripts/configure_ec2.sh](mdc:scripts/configure_ec2.sh) - Example variable usage
+- [Makefile](mdc:Makefile) - Variable validation in targets

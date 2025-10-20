@@ -1,0 +1,13 @@
+# Example terraform.tfvars file
+# Copy this to terraform.tfvars and customize for your environment
+
+# Domain name for Route53 hosted zone (must be pre-registered)
+domain_name = "your-domain.com"
+
+# Uncomment and customize these if you want to override defaults
+# aws_region = "us-east-1"
+# instance_name = "dns-shell-sandbox-dns-shell-server"
+# security_group_name = "dns-shell-sandbox-dns-shell-sg"
+# iam_role_name = "dns-shell-sandbox-dns-shell-role"
+# s3_bucket_name = "agentcore-hacking"
+

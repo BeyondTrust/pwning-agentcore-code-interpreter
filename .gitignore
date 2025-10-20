@@ -1,0 +1,33 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# IDEs
+.idea
+
+# Virtual environments
+.venv
+venv
+
+# Working directories
+tmp/
+
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate*
+terraform/.terraform.tfstate*
+terraform/terraform.tfstate.backup
+terraform/terraform.tfvars
+terraform/*.tfplan
+
+# Code interpreter session
+.session_id
+
+
+# Repository specific
+*.log

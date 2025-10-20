@@ -1,0 +1,9 @@
+# Base dependencies
+bedrock-agentcore==0.1.2
+boto3==1.40.21
+dnslib==0.9.24
+requests==2.32.5
+
+# Development dependencies
+pytest==8.0.0
+pytest-cov==5.0.0

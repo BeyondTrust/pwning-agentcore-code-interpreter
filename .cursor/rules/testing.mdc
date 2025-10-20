@@ -1,0 +1,311 @@
+---
+description: Testing requirements and best practices for the DNS C2 project
+globs: src/**/*.py, tests/**/*.py, terraform/**/*.py
+alwaysApply: false
+---
+
+## **Test Execution Requirements**
+
+### **Always Run Tests Before:**
+- Making code changes to `src/dns_protocol.py`
+- Modifying DNS encoding/decoding logic
+- Committing changes to git
+- Deploying to EC2
+- Creating pull requests
+
+### **How to Run Tests:**
+```bash
+# Quick test (use this most often)
+make test
+
+# Verbose output (for debugging)
+make test-verbose
+
+# Direct execution
+python3 tests/test_dns_protocol.py
+```
+
+### **Expected Output:**
+```
+Ran 74 tests in 0.001s
+
+OK
+```
+
+## **Test-Driven Development (TDD)**
+
+### **When Adding New Features:**
+1. **Write failing test first**
+   ```python
+   def test_new_feature(self):
+       """Test description of what should happen."""
+       result = my_new_function(input)
+       self.assertEqual(result, expected)
+   ```
+
+2. **Run test (should fail)**
+   ```bash
+   make test  # Should show FAILED
+   ```
+
+3. **Implement feature**
+   ```python
+   def my_new_function(input):
+       # Implementation
+       return result
+   ```
+
+4. **Run test (should pass)**
+   ```bash
+   make test  # Should show OK
+   ```
+
+5. **Refactor if needed**
+
+6. **Run test again**
+   ```bash
+   make test  # Should still show OK
+   ```
+
+## **When Fixing Bugs**
+
+### **Always Add Regression Test:**
+```python
+def test_bug_description(self):
+    """
+    Test for bug where [describe the bug].
+    
+    This ensures the bug doesn't happen again.
+    """
+    # Test case that reproduces the bug
+    # Assert it's fixed
+```
+
+**Example:**
+```python
+def test_dns_retry_bug(self):
+    """
+    Test the DNS retry bug where chunk 2 returned 0.0.0.0.
+    
+    Client queries c0, c1, c2 but server deletes pending command
+    after sending c2, causing retries to get 0.0.0.0.
+    """
+    ips_with_bug = ["10.100.50.104", "10.118.89.87", "0.0.0.0"]
+    is_valid, error = validate_chunk_sequence(ips_with_bug)
+    self.assertFalse(is_valid)
+    self.assertIn("0.0.0.0", error)
+```
+
+## **Pure Functions for Testability**
+
+### **✅ DO: Write Pure Functions**
+```python
+def encode_chunk_to_ip(chunk_data: str, is_last: bool) -> str:
+    """
+    Encode a chunk into an IP address.
+    
+    Pure function: no side effects, same input = same output.
+    Easy to test!
+    """
+    first_octet = "11" if is_last else "10"
+    octets = [first_octet]
+    for char in chunk_data:
+        octets.append(str(ord(char)))
+    while len(octets) < 4:
+        octets.append("0")
+    return ".".join(octets)
+```
+
+### **❌ DON'T: Mix Logic with Side Effects**
+```python
+# BAD: Hard to test
+def encode_and_send_chunk(chunk_data: str, is_last: bool):
+    """This function does too much!"""
+    ip = encode_chunk_to_ip(chunk_data, is_last)  # Logic
+    send_dns_response(ip)  # Side effect
+    log_to_file(ip)  # Side effect
+```
+
+### **✅ DO: Separate Logic from Side Effects**
+```python
+# GOOD: Easy to test
+def encode_chunk_to_ip(chunk_data: str, is_last: bool) -> str:
+    """Pure function - just logic."""
+    # ... encoding logic ...
+    return ip
+
+# Separate function for side effects
+def send_chunk(chunk_data: str, is_last: bool):
+    """Orchestrates logic and side effects."""
+    ip = encode_chunk_to_ip(chunk_data, is_last)  # Testable logic
+    send_dns_response(ip)  # Side effect
+    log_to_file(ip)  # Side effect
+```
+
+## **Test Organization**
+
+### **Test File Structure:**
+```python
+import unittest
+
+class TestFeatureName(unittest.TestCase):
+    """Test suite for specific feature."""
+    
+    def test_basic_case(self):
+        """Test the basic/happy path."""
+        pass
+    
+    def test_edge_case(self):
+        """Test edge cases."""
+        pass
+    
+    def test_error_handling(self):
+        """Test error conditions."""
+        pass
+```
+
+### **Test Categories:**
+- **Unit Tests** - Test individual functions (63 tests)
+- **Integration Tests** - Test component interaction (11 tests)
+- **End-to-End Tests** - Test complete flow (future)
+
+## **Test Coverage Goals**
+
+### **Must Have Tests For:**
+- ✅ All encoding/decoding functions
+- ✅ Data validation functions
+- ✅ Error handling
+- ✅ Edge cases (empty, very long, special chars)
+- ✅ Known bugs (regression tests)
+
+### **Test Naming Convention:**
+```python
+def test_<what>_<condition>_<expected>():
+    """Clear description of what's being tested."""
+    pass
+
+# Examples:
+def test_encode_chunk_with_last_flag_returns_ip_starting_with_11():
+def test_decode_invalid_base64_raises_exception():
+def test_validate_sequence_with_zero_ip_returns_false():
+```
+
+## **When Tests Fail**
+
+### **1. Read the Error Message**
+```
+AssertionError: 'whoami' != 'whoa'
+```
+
+### **2. Run with Verbose Output**
+```bash
+make test-verbose
+```
+
+### **3. Add Debug Prints**
+```python
+def test_my_feature(self):
+    result = my_function(input)
+    print(f"DEBUG: result = {result}")  # Temporary debug
+    self.assertEqual(result, expected)
+```
+
+### **4. Run Specific Test**
+```bash
+python3 -m unittest tests.test_dns_protocol.TestCommandEncoding.test_encode_whoami
+```
+
+### **5. Fix the Bug**
+
+### **6. Remove Debug Prints**
+
+### **7. Verify All Tests Pass**
+```bash
+make test
+```
+
+## **CI/CD Integration (Future)**
+
+### **GitHub Actions Example:**
+```yaml
+name: Tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run tests
+        run: make test
+```
+
+## **Performance Expectations**
+
+- **Unit tests should run in < 1 second**
+- **Integration tests should run in < 10 seconds**
+- **End-to-end tests can be slower but should be automated**
+
+## **Documentation**
+
+### **Every Test Should Have:**
+- Clear docstring explaining what's being tested
+- Comments for complex assertions
+- Reference to related bugs (if regression test)
+
+### **Example:**
+```python
+def test_dns_retry_bug(self):
+    """
+    Test the DNS retry bug where chunk 2 returned 0.0.0.0.
+    
+    Background:
+    - Client queries c0, c1, c2
+    - Server sends c2 correctly (11.49.112.0)
+    - Server deletes pending command
+    - Client retries c2 (DNS retry)
+    - Server returns 0.0.0.0 (no pending command)
+    - Client gets incomplete base64: 'd2hvYW' instead of 'd2hvYW1p'
+    
+    This test ensures the bug doesn't happen again.
+    
+    See: docs/DNS_RETRY_FIX.md
+    """
+    ips_with_bug = ["10.100.50.104", "10.118.89.87", "0.0.0.0"]
+    is_valid, error = validate_chunk_sequence(ips_with_bug)
+    self.assertFalse(is_valid)
+    self.assertIn("0.0.0.0", error)
+```
+
+## **Related Documentation**
+
+- [docs/TESTING.md](mdc:docs/TESTING.md) - Complete testing guide
+- [docs/TESTING_IMPLEMENTATION.md](mdc:docs/TESTING_IMPLEMENTATION.md) - Implementation details
+- [tests/test_dns_protocol.py](mdc:tests/test_dns_protocol.py) - Test suite
+- [src/dns_protocol.py](mdc:src/dns_protocol.py) - Pure functions being tested
+
+## **Quick Reference**
+
+```bash
+# Before making changes
+make test
+
+# After making changes
+make test
+
+# Before committing
+make test && git commit
+
+# Before deploying
+make test && make update-dns
+
+# When debugging
+make test-verbose
+```
+
+**Remember: Tests are your safety net. Use them!** 🎯
