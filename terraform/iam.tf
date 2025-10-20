@@ -66,7 +66,10 @@ resource "aws_iam_role_policy" "s3_access" {
           "s3:PutObject",
           "s3:GetObject"
         ]
-        Resource = "arn:aws:s3:::${var.s3_bucket_name}/*"
+        Resource = [
+          "arn:aws:s3:::${var.s3_bucket_name}/*",
+          "arn:aws:s3:::${var.s3_bucket_name}-sensitive-data/*",
+        ]
       }
     ]
   })

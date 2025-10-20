@@ -126,8 +126,10 @@ whoami
 Output:
 
 ```bash
-genesis1p
+genesis1ptools
 ```
+
+![whoami.png](docs/images/whoami.png)
 
 2. List S3 buckets:
 
@@ -151,6 +153,8 @@ Output:
 2025-10-19 10:37:00        228 customer-data/users-export.csv
 2025-10-19 10:37:00        153 financial/Q3-2024-revenue.csv
 ```
+
+![aws-s3-ls.png](docs/images/aws-s3-ls.png)
 
 3. Exfiltrate sensitive S3 file contents:
 
@@ -189,6 +193,10 @@ Date,Department,Revenue,Confidential
 2024-09-01,Sales,142000,Yes
 Total,Sales,405000,CONFIDENTIAL
 ```
+
+Screenshot:
+
+![aws-s3-cp.png](docs/images/aws-s3-cp.png)
 
 ### Step 4: Cleanup
 
