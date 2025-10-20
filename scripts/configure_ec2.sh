@@ -34,13 +34,13 @@ echo "[✓] DNS server process stopped"
 echo ""
 
 # Create deployment script for EC2
-cat > /tmp/deploy_dns_ec2.sh << 'DEPLOY_SCRIPT'
+cat > /tmp/deploy_dns_ec2.sh << DEPLOY_SCRIPT
 #!/bin/bash
 set -e
 
-BUCKET="${BUCKET:-agentcore-hacking}"
-DNS_PREFIX="${DNS_PREFIX:-dns-server}"
-DOMAIN="${DOMAIN:-c2.bt-research-control.com}"
+BUCKET="$BUCKET"
+DNS_PREFIX="$DNS_PREFIX"
+DOMAIN="$DOMAIN"
 INSTALL_DIR="/opt/dns-c2"
 LOG_DIR="/var/log/dns-c2"
 
@@ -56,26 +56,26 @@ sudo pip3 install dnslib
 
 # Create log directory
 echo "[*] Creating log directory..."
-sudo mkdir -p $LOG_DIR
-sudo chmod 755 $LOG_DIR
+sudo mkdir -p /var/log/dns-c2
+sudo chmod 755 /var/log/dns-c2
 
 # Create directory in /opt (accessible by all users)
-echo "[*] Creating directory at $INSTALL_DIR..."
-sudo mkdir -p $INSTALL_DIR
-cd $INSTALL_DIR
+echo "[*] Creating directory at /opt/dns-c2..."
+sudo mkdir -p /opt/dns-c2
+cd /opt/dns-c2
 
 # Download DNS server from S3
 echo "[*] Downloading DNS server from S3..."
 sudo aws s3 cp "s3://$BUCKET/$DNS_PREFIX/dns_server_with_api.py" dns_server_with_api.py
 
 # Make readable by all users
-sudo chmod 755 $INSTALL_DIR
-sudo chmod 644 $INSTALL_DIR/dns_server_with_api.py
+sudo chmod 755 /opt/dns-c2
+sudo chmod 644 /opt/dns-c2/dns_server_with_api.py
 
 # Also create symlink in ssm-user home if it exists
 if [ -d "/home/ssm-user" ]; then
     echo "[*] Creating symlink for ssm-user..."
-    sudo ln -sf $INSTALL_DIR /home/ssm-user/dns-c2
+    sudo ln -sf /opt/dns-c2 /home/ssm-user/dns-c2
     sudo chown -h ssm-user:ssm-user /home/ssm-user/dns-c2
 fi
 
@@ -88,7 +88,7 @@ sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json > /de
       "files": {
         "collect_list": [
           {
-            "file_path": "$LOG_DIR/dns_server.log",
+            "file_path": "/var/log/dns-c2/dns_server.log",
             "log_group_name": "/aws/ec2/dns-c2-server",
             "log_stream_name": "{instance_id}/dns-server",
             "timezone": "UTC"
@@ -110,17 +110,17 @@ sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
 
 # Create start script (with API)
 echo "[*] Creating start script..."
-sudo tee $INSTALL_DIR/start_dns_server.sh > /dev/null << STARTSCRIPT
+sudo tee /opt/dns-c2/start_dns_server.sh > /dev/null << STARTSCRIPT
 #!/bin/bash
 cd /opt/dns-c2
 sudo python3 dns_server_with_api.py --domain $DOMAIN --dns-port 53 --api-port 8080
 STARTSCRIPT
-sudo chmod +x $INSTALL_DIR/start_dns_server.sh
+sudo chmod +x /opt/dns-c2/start_dns_server.sh
 
 echo ""
 echo "[✓] Setup complete!"
 echo ""
-echo "Files installed to: $INSTALL_DIR"
+echo "Files installed to: /opt/dns-c2"
 echo ""
 echo "To start the DNS server, choose ONE option:"
 echo ""

@@ -10,6 +10,9 @@ install: setup-env
 		python3 -m pip install -r requirements.txt; \
 	fi
 
+activate-venv:
+	. venv/bin/activate
+
 terraform-yolo:
 	@pushd terraform > /dev/null && terraform init && terraform plan && terraform apply -auto-approve && popd > /dev/null
 	@echo ""
@@ -30,16 +33,16 @@ test-dns:
 	@bash -c 'source set_env_vars.sh && python3 test_dns.py --domain $$DOMAIN'
 
 operator:
-	@bash -c 'source set_env_vars.sh && python3 src/attacker_shell.py $(VERBOSE) interactive'
+	@bash -c 'source set_env_vars.sh && . venv/bin/activate && python3 src/attacker_shell.py $(VERBOSE) interactive'
 
 sandbox:
 	@python3 execute_payload.py
 
 shell-interactive:
-	@bash -c 'source set_env_vars.sh && python3 src/attacker_shell.py $(VERBOSE) interactive'
+	@bash -c 'source set_env_vars.sh && . venv/bin/activate && python3 src/attacker_shell.py $(VERBOSE) interactive'
 
 shell-interactive-verbose:
-	@bash -c 'source set_env_vars.sh && python3 src/attacker_shell.py --verbose interactive'
+	@bash -c 'source set_env_vars.sh && . venv/bin/activate && python3 src/attacker_shell.py --verbose interactive'
 
 # Testing
 test:
