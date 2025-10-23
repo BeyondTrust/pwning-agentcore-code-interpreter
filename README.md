@@ -239,14 +239,7 @@ Reported to AWS via HackerOne vulnerability disclosure program (Report #3323153)
 
 The vulnerability exists in AWS Bedrock AgentCore Code Interpreter's sandbox implementation. AWS must block outbound DNS traffic from Code Interpreter instances when "Sandbox" network mode is configured.
 
-**Interim Workarounds for Users:**
 
-Until AWS fixes the service:
-- **Do not rely on "Sandbox" mode** for network isolation
-- **Use VPC mode** with proper isolation:
-  - No NAT Gateway or Internet Gateway attached to VPC
-  - VPC endpoints for required AWS services only (S3, DynamoDB, etc.)
-  - VPC endpoint policies restricting access to specific resources (e.g., S3 endpoint limited to allowlist of buckets, not `*`)
   - Note: Without endpoint policies, attacker can exfiltrate via S3 access logs to attacker-controlled buckets
 - **Apply least-privilege IAM policies** to Code Interpreter roles (specific resources, not `*`)
 - **Monitor CloudWatch logs** for unexpected Code Interpreter activity
