@@ -10,39 +10,73 @@ This is a **security research project** demonstrating a DNS-based exfiltration v
 
 ## Architecture
 
-The system consists of three main components that work together:
+The project now has two separate infrastructures to demonstrate a realistic attack:
 
-### 1. DNS C2 Server (EC2-hosted)
-- **Location**: `terraform/c2-server/dns_server_with_api.py`
+### Directory Structure
+```
+agentcore-sandbox-breakout/
+├── attacker-infra/          # Attacker's AWS account
+│   ├── terraform/           # C2 server infrastructure
+│   ├── src/                 # Attack tools
+│   └── tests/               # Unit tests
+├── victim-infra/            # Victim's AWS account
+│   ├── terraform/           # Chatbot infrastructure
+│   └── chatbot/             # FastAPI application
+├── shared/                  # Shared code
+└── docs/                    # Specifications
+```
+
+### Attacker Infrastructure
+
+#### 1. DNS C2 Server (EC2-hosted)
+- **Location**: `attacker-infra/terraform/c2-server/dns_server_with_api.py`
 - **Purpose**: Runs on EC2 with public IP to receive DNS queries from AWS sandbox
 - **Protocols**:
   - DNS server (port 53) - Handles DNS queries from payload client
   - HTTP API (port 8080) - Accepts commands from operator shell
-- **Key Functions**:
-  - `encode_chunk_to_ip()` - Encodes 3 chars of base64 into IP address octets
-  - `encode_command_to_chunks()` - Splits commands into DNS-deliverable chunks
-  - `C2Resolver` class - Custom DNS resolver handling command delivery and data exfiltration
 
-### 2. Payload Client (Injected into Sandbox)
-- **Location**: `src/payload_client.py`
+#### 2. Payload Client (Injected into Sandbox)
+- **Location**: `attacker-infra/src/payload_client.py`
 - **Purpose**: Runs inside AgentCore Code Interpreter sandbox
 - **Behavior**:
   - Polls `cmd.<session_id>.<domain>` for commands
   - Fetches command chunks via `c0.<session_id>.<domain>`, `c1.<session_id>.<domain>`, etc.
   - Executes commands and exfiltrates output via DNS queries
-  - Uses curl to trigger DNS queries with data embedded in subdomains
 
-### 3. Operator Shell (Attacker Interface)
-- **Location**: `src/attacker_shell.py`
+#### 3. Operator Shell (Attacker Interface)
+- **Location**: `attacker-infra/src/attacker_shell.py`
 - **Purpose**: Local interactive shell for the security researcher
-- **Capabilities**:
-  - Generate payloads with unique session IDs
-  - Send commands to specific sessions via HTTP API
-  - Retrieve command output from C2 server
-  - Interactive mode for real-time interaction
+- **New Commands**:
+  - `attack` - Send prompt injection to victim chatbot
+  - `generate-csv` - Generate malicious CSV for manual upload
 
-### 4. DNS Protocol Library
-- **Location**: `src/dns_protocol.py`
+#### 4. Attack Tools (NEW)
+- **Location**: `attacker-infra/src/attack_client.py`
+- **Purpose**: HTTP client for sending malicious CSV to victim chatbot
+- **Location**: `attacker-infra/src/csv_payload_generator.py`
+- **Purpose**: Generate malicious CSV with embedded prompt injection
+
+### Victim Infrastructure (NEW)
+
+#### 5. FastAPI Chatbot
+- **Location**: `victim-infra/chatbot/`
+- **Purpose**: Publicly-accessible AI chatbot that uses AgentCore Code Interpreter
+- **Vulnerability**: Passes user CSV content directly to Code Interpreter without sanitization
+- **Endpoints**:
+  - `POST /analyze/csv` - Upload CSV for analysis (VULNERABLE)
+  - `GET /` - Web UI
+
+#### 6. Victim Terraform
+- **Location**: `victim-infra/terraform/`
+- **Resources**:
+  - ECS Fargate cluster running FastAPI
+  - Application Load Balancer (public)
+  - AgentCore Code Interpreter (SANDBOX mode)
+  - IAM roles (intentionally over-permissioned)
+  - S3/DynamoDB with demo "sensitive" data
+
+### DNS Protocol Library
+- **Location**: `shared/dns_protocol.py`
 - **Purpose**: Pure functions for DNS encoding/decoding (testable, reusable)
 - **Design**: Separated for unit testing without dependencies
 
@@ -72,8 +106,20 @@ The C2 protocol encodes data into DNS queries using this scheme:
 
 ## Common Development Commands
 
-### Setup and Infrastructure
+### Deploy Everything (Both Infrastructures)
 ```bash
+# From root directory
+make deploy-all                 # Deploy attacker + victim infrastructure
+
+# Or deploy separately:
+make deploy-attacker            # Deploy C2 server only
+make deploy-victim              # Deploy chatbot only
+```
+
+### Attacker Infrastructure Setup
+```bash
+cd attacker-infra
+
 # One-time setup
 make setup-env                  # Create Python venv
 source venv/bin/activate        # Activate venv
@@ -85,8 +131,24 @@ source set_env_vars.sh          # Export env vars (EC2_IP, DOMAIN, EC2_INSTANCE_
 make configure-ec2              # Deploy DNS server to EC2 and start it
 ```
 
+### Victim Infrastructure Setup
+```bash
+cd victim-infra
+
+# Deploy all resources
+make deploy                     # Terraform + Docker build/push + ECS deploy
+
+# Or step by step:
+make terraform-deploy           # Deploy infrastructure only
+make docker-push                # Build and push container
+make ecs-redeploy               # Force ECS to use new container
+make show-url                   # Get the chatbot URL
+```
+
 ### Testing
 ```bash
+cd attacker-infra
+
 # Run all tests (protocol + server + integration)
 make test                       # Run all three test suites
 make test-verbose               # Verbose output with detailed assertions
@@ -97,16 +159,30 @@ python3 tests/test_dns_server.py       # 27 tests - Server-side logic
 python3 tests/test_dns_integration.py  # 11 tests - End-to-end scenarios
 ```
 
+### Running the Attack (Realistic Demo)
+```bash
+cd attacker-infra
+
+# Option 1: Attack via HTTP (no victim credentials needed)
+make attack TARGET=https://victim-chatbot.example.com
+
+# Option 2: Generate CSV for manual upload
+make generate-csv               # Creates malicious CSV file
+# Then upload to victim's web interface
+
+# Option 3: Direct Code Interpreter access (requires credentials)
+make operator                   # Interactive shell for sending commands
+```
+
 ### Running the C2 System
 ```bash
+cd attacker-infra
+
 # Terminal 1: Start operator shell (DNS server auto-starts via configure-ec2)
 make operator                   # Interactive shell for sending commands
 
 # Terminal 2: Monitor CloudWatch logs (optional)
 make logs                       # Watch DNS queries and exfiltrated data
-
-# Terminal 3: Execute payload in Code Interpreter (if not using interactive mode)
-make sandbox                    # Executes execute_payload.py
 
 # Note: DNS server on EC2 starts automatically via configure-ec2
 # Manual SSH access (if needed): aws ssm start-session --target $EC2_INSTANCE_ID
@@ -114,6 +190,8 @@ make sandbox                    # Executes execute_payload.py
 
 ### Development Workflow
 ```bash
+cd attacker-infra
+
 # Update DNS server and redeploy
 make update-dns                 # Upload to S3 + redeploy to EC2
 
@@ -129,40 +207,68 @@ make shell-interactive-verbose  # Interactive shell with verbose logging
 make shell-generate             # Generate payload and display it
 make shell-send CMD="whoami" SESSION="sess_abc123"  # Send command to specific session
 make shell-receive SESSION="sess_abc123"            # Retrieve output from session
-
-# Kill active session
-make kill-session               # Terminate active Code Interpreter session
 ```
 
 ### Cleanup
 ```bash
-make terraform-destroy          # Destroy all AWS resources
+# From root directory
+make destroy-all                # Destroy both infrastructures
+
+# Or individually:
+cd attacker-infra && make terraform-destroy
+cd victim-infra && make destroy
 ```
 
 ## Project Structure
 
 ```
-.
-├── src/                        # Core Python modules
-│   ├── attacker_shell.py       # Operator interface (local)
-│   ├── payload_client.py       # Client payload (runs in sandbox)
-│   └── dns_protocol.py         # Pure DNS encoding/decoding functions
-├── terraform/                  # Infrastructure as Code
-│   ├── c2-server/
-│   │   └── dns_server_with_api.py  # DNS C2 server (deployed to EC2)
-│   ├── *.tf                    # Terraform configs (EC2, Route53, S3, IAM)
-│   └── README.md               # Infrastructure documentation
-├── tests/                      # Unit and integration tests
-│   ├── test_dns_protocol.py    # Protocol tests (36 tests)
-│   ├── test_dns_server.py      # Server tests (27 tests)
-│   ├── test_dns_integration.py # Integration tests (11 tests)
-│   └── mock_dns_server.py      # Mock server for integration testing
-├── scripts/                    # Automation scripts
-│   ├── configure_ec2.sh        # Deploy DNS server to EC2
-│   └── check_dns_status.sh     # Verify DNS server running
-├── helpers/                    # Utility functions
-├── Makefile                    # Development commands
-└── requirements.txt            # Python dependencies
+agentcore-sandbox-breakout/
+├── attacker-infra/                 # Attacker infrastructure (C2 server)
+│   ├── src/                        # Core Python modules
+│   │   ├── attacker_shell.py       # Operator interface (local)
+│   │   ├── attack_client.py        # HTTP client for victim chatbot
+│   │   ├── csv_payload_generator.py # Malicious CSV generator
+│   │   ├── payload_client.py       # Client payload (runs in sandbox)
+│   │   └── dns_protocol.py         # Pure DNS encoding/decoding functions
+│   ├── terraform/                  # Infrastructure as Code
+│   │   ├── c2-server/
+│   │   │   └── dns_server_with_api.py  # DNS C2 server (deployed to EC2)
+│   │   └── *.tf                    # Terraform configs (EC2, Route53, S3, IAM)
+│   ├── tests/                      # Unit and integration tests
+│   ├── scripts/                    # Automation scripts
+│   ├── Makefile                    # Attacker commands
+│   └── requirements.txt            # Python dependencies
+│
+├── victim-infra/                   # Victim infrastructure (chatbot)
+│   ├── chatbot/                    # FastAPI application
+│   │   ├── app/
+│   │   │   ├── main.py             # FastAPI entry point
+│   │   │   ├── routers/
+│   │   │   │   ├── chat.py         # Chat endpoint
+│   │   │   │   └── analyze.py      # CSV analysis endpoint (VULNERABLE)
+│   │   │   ├── services/
+│   │   │   │   └── agentcore.py    # AgentCore integration
+│   │   │   └── templates/
+│   │   │       └── index.html      # Web UI
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   ├── terraform/                  # Infrastructure as Code
+│   │   ├── ecs.tf                  # ECS Fargate cluster
+│   │   ├── alb.tf                  # Application Load Balancer
+│   │   ├── agentcore.tf            # Code Interpreter (SANDBOX mode)
+│   │   ├── iam.tf                  # IAM roles (intentionally overprivileged)
+│   │   └── sensitive_data.tf       # Demo S3/DynamoDB data
+│   └── Makefile                    # Victim commands
+│
+├── shared/                         # Shared utilities
+│   └── dns_protocol.py             # DNS encoding/decoding
+│
+├── docs/                           # Documentation
+│   ├── TECH_SPEC_V2.md             # Technical specification
+│   └── IMPLEMENTATION_PLAN.md     # Implementation plan
+│
+├── Makefile                        # Root orchestration commands
+└── README.md                       # Project documentation
 ```
 
 ## Key Technical Details

