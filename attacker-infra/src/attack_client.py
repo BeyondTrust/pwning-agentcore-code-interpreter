@@ -21,13 +21,7 @@ import time
 import tempfile
 from pathlib import Path
 
-# Try to import requests, provide helpful error if not installed
-try:
-    import requests
-except ImportError:
-    print("Error: 'requests' module not installed.", file=sys.stderr)
-    print("Install with: pip install requests", file=sys.stderr)
-    sys.exit(1)
+import requests
 
 # Add src directory to path
 SCRIPT_DIR = Path(__file__).parent.absolute()
