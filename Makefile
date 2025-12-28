@@ -10,13 +10,31 @@
 # The demo shows that an attacker with NO AWS credentials can exfiltrate
 # data by sending a malicious CSV to the victim's public chatbot API.
 
-.PHONY: help deploy-all destroy-all attack demo
+.PHONY: help setup install local-api deploy-all destroy-all attack demo
+
+# =============================================================================
+# Local Development Setup
+# =============================================================================
+
+setup:
+	python3 -m venv venv
+	. venv/bin/activate && pip install --upgrade pip
+
+install: setup
+	. venv/bin/activate && pip install -r requirements.txt
+
+local-api:
+	. venv/bin/activate && cd victim-infra/chatbot && uvicorn app.main:app --reload --port 8000
 
 # Default target
 help:
 	@echo ""
 	@echo "DNS Exfiltration Security Demo"
 	@echo "=============================="
+	@echo ""
+	@echo "Local Development:"
+	@echo "  make install            Set up venv and install all dependencies"
+	@echo "  make local-api          Run FastAPI chatbot locally (http://localhost:8000)"
 	@echo ""
 	@echo "Quick Start:"
 	@echo "  make deploy-attacker    Deploy C2 server infrastructure"
@@ -33,7 +51,6 @@ help:
 	@echo "  Victim Infrastructure (victim-infra/):"
 	@echo "    make deploy-victim    Deploy vulnerable chatbot to AWS"
 	@echo "    make victim-url       Show chatbot URL"
-	@echo "    make victim-local     Run chatbot locally for testing"
 	@echo ""
 	@echo "  Demo:"
 	@echo "    make demo             Full attack demonstration"

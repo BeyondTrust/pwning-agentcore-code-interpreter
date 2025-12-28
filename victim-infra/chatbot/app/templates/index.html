@@ -342,6 +342,28 @@
             </div>
 
             <div class="examples">
+                <h4>Quick Start Examples:</h4>
+                <div class="example-buttons" style="display: flex; gap: 12px; margin-bottom: 16px;">
+                    <button type="button" class="example-btn legitimate" id="legitExample" style="flex: 1; padding: 16px; background: #28a745; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;">
+                        Use Example: Legitimate CSV
+                    </button>
+                    <button type="button" class="example-btn injection" id="injectionExample" style="flex: 1; padding: 16px; background: #dc3545; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;">
+                        Use Example: Prompt Injection CSV
+                    </button>
+                </div>
+
+                <div id="injectionInstructions" style="display: none; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                    <h4 style="color: #856404; margin-bottom: 12px;">Prompt Injection Payload Instructions</h4>
+                    <p style="color: #856404; font-size: 14px; margin-bottom: 12px;">
+                        To generate the malicious CSV payload, run from the <code>attacker-infra/</code> directory:
+                    </p>
+                    <pre style="background: #333; color: #0f0; padding: 12px; border-radius: 4px; font-size: 13px; overflow-x: auto;">cd attacker-infra
+make generate-csv</pre>
+                    <p style="color: #856404; font-size: 14px; margin-top: 12px;">
+                        This will generate a CSV file with the embedded payload. Upload that file and use any prompt.
+                    </p>
+                </div>
+
                 <h4>Example questions:</h4>
                 <div class="example-chips">
                     <button type="button" class="example-chip">Show summary statistics</button>
@@ -418,6 +440,48 @@
                 message.value = chip.textContent;
                 message.focus();
             });
+        });
+
+        // Legitimate CSV example
+        document.getElementById('legitExample').addEventListener('click', () => {
+            // Create a sample CSV
+            const sampleCSV = `date,product,region,sales,units
+2024-01-01,Widget A,North,1250.00,50
+2024-01-01,Widget B,South,890.50,35
+2024-01-02,Widget A,East,1100.00,44
+2024-01-02,Widget C,West,2340.00,78
+2024-01-03,Widget B,North,560.25,22
+2024-01-03,Widget A,South,1890.00,75
+2024-01-04,Widget C,East,1560.00,52
+2024-01-04,Widget B,West,720.00,28
+2024-01-05,Widget A,North,2100.00,84
+2024-01-05,Widget C,South,1450.75,48`;
+
+            // Create a File object from the CSV string
+            const blob = new Blob([sampleCSV], { type: 'text/csv' });
+            const file = new File([blob], 'sample_sales_data.csv', { type: 'text/csv' });
+
+            // Create a DataTransfer to set the file input
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            fileInput.files = dataTransfer.files;
+
+            // Update the UI
+            updateFileInfo();
+            message.value = 'Show summary statistics';
+
+            // Hide injection instructions if visible
+            document.getElementById('injectionInstructions').style.display = 'none';
+        });
+
+        // Prompt Injection example
+        document.getElementById('injectionExample').addEventListener('click', () => {
+            const instructions = document.getElementById('injectionInstructions');
+            instructions.style.display = instructions.style.display === 'none' ? 'block' : 'none';
+
+            // Clear any currently selected file
+            fileInput.value = '';
+            fileInfo.classList.remove('visible');
         });
 
         // Form submission

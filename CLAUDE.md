@@ -106,6 +106,17 @@ The C2 protocol encodes data into DNS queries using this scheme:
 
 ## Common Development Commands
 
+### Local Development (No AWS Required)
+```bash
+# From repo root - one-time setup
+make install                    # Create venv and install all dependencies
+
+# Run FastAPI chatbot locally
+make local-api                  # Starts server at http://localhost:8000
+
+# The local server supports hot-reload - edit files and refresh browser
+```
+
 ### Deploy Everything (Both Infrastructures)
 ```bash
 # From root directory
