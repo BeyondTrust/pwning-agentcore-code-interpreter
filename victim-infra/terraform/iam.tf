@@ -85,12 +85,7 @@ resource "aws_iam_role" "code_interpreter" {
       Action = "sts:AssumeRole"
       Effect = "Allow"
       Principal = {
-        Service = "bedrock.amazonaws.com"
-      }
-      Condition = {
-        StringEquals = {
-          "aws:SourceAccount" = data.aws_caller_identity.current.account_id
-        }
+        Service = "bedrock-agentcore.amazonaws.com"
       }
     }]
   })

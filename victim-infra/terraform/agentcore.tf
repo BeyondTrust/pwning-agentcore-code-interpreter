@@ -2,7 +2,7 @@
 # This creates the Code Interpreter that will be exploited via prompt injection
 
 resource "aws_bedrockagentcore_code_interpreter" "main" {
-  name               = "${var.project_name}-interpreter-${random_id.suffix.hex}"
+  name               = "victim_chatbot_${random_id.suffix.hex}"
   execution_role_arn = aws_iam_role.code_interpreter.arn
 
   # VULNERABILITY: SANDBOX mode does NOT properly isolate DNS

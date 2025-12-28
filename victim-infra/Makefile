@@ -3,6 +3,12 @@
 
 AWS_REGION ?= us-east-1
 
+# Load .env file if it exists (sets AWS_PROFILE)
+ifneq (,$(wildcard .env))
+include .env
+export
+endif
+
 # Get ECR repository URL from Terraform output
 ECR_REPO = $(shell cd terraform && terraform output -raw ecr_repository_url 2>/dev/null || echo "not-deployed")
 
@@ -33,16 +39,19 @@ terraform-plan:
 	cd terraform && terraform plan
 
 terraform-apply:
-	cd terraform && terraform apply -auto-approve
+	cd terraform && terraform apply
 
 terraform-destroy:
-	cd terraform && terraform destroy -auto-approve
+	cd terraform && terraform destroy
 
-# Full deployment (without container - will fail health checks until container is pushed)
-terraform-deploy: terraform-init terraform-apply
+# Full deploy: init + plan + apply (auto-approve)
+terraform-yolo: terraform-init
+	cd terraform && terraform plan && terraform apply -auto-approve
 	@echo ""
 	@echo "✓ Infrastructure deployed!"
-	@echo ""
+
+# Alias for terraform-yolo (backwards compatibility)
+terraform-deploy: terraform-yolo
 	@echo "Next steps:"
 	@echo "  1. Build and push the container: make docker-push"
 	@echo "  2. Force ECS to redeploy: make ecs-redeploy"
@@ -53,7 +62,7 @@ terraform-deploy: terraform-init terraform-apply
 # =============================================================================
 
 docker-build:
-	cd chatbot && docker build -t victim-chatbot:latest .
+	cd chatbot && docker build --platform linux/amd64 -t victim-chatbot:latest .
 
 docker-run-local:
 	docker run -p 8000:8000 \

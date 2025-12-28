@@ -1,3 +1,9 @@
+# Load .env file if it exists (sets AWS_PROFILE)
+ifneq (,$(wildcard .env))
+include .env
+export
+endif
+
 setup-env:
 	python3 -m venv venv
 	. venv/bin/activate && python3 -m pip install --upgrade pip
@@ -13,14 +19,31 @@ install: setup-env
 activate-venv:
 	. venv/bin/activate
 
-terraform-yolo:
-	@pushd terraform > /dev/null && terraform init && terraform plan && terraform apply -auto-approve && popd > /dev/null
+# =============================================================================
+# Terraform
+# =============================================================================
+
+terraform-init:
+	cd terraform && terraform init
+
+terraform-plan:
+	cd terraform && terraform plan
+
+terraform-apply:
+	cd terraform && terraform apply
+
+terraform-destroy:
+	cd terraform && terraform destroy
+
+# Full deploy: init + plan + apply (auto-approve)
+terraform-yolo: terraform-init
+	cd terraform && terraform plan && terraform apply -auto-approve
 	@echo ""
 	@echo "✓ Infrastructure deployed!"
 	@echo ""
 	@echo "Run: source set_env_vars.sh"
 	@echo "Then: make configure-ec2"
-	make configure-ec2
+	$(MAKE) configure-ec2
 
 set-env-vars:
 	echo "⚠️⚠️ You cannot set environment variables via Makefile. Run it with this command:"
@@ -88,11 +111,8 @@ check-dns:
 
 # Upload updated DNS server to S3, then deploy and restart on EC2
 update-dns:
-	@pushd terraform > /dev/null && terraform apply -auto-approve -target=aws_s3_object.dns_server_with_api && popd > /dev/null
-	@$(MAKE) configure-ec2
-
-terraform-destroy:
-	@pushd terraform > /dev/null && terraform destroy && popd > /dev/null
+	cd terraform && terraform apply -auto-approve -target=aws_s3_object.dns_server_with_api
+	$(MAKE) configure-ec2
 
 # =============================================================================
 # Attack Commands (for realistic prompt injection demo)

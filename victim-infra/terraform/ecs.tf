@@ -48,11 +48,11 @@ resource "aws_ecs_task_definition" "chatbot" {
       },
       {
         name  = "CODE_INTERPRETER_ID"
-        value = aws_bedrockagentcore_code_interpreter.main.id
+        value = aws_bedrockagentcore_code_interpreter.main.code_interpreter_id
       },
       {
         name  = "CODE_INTERPRETER_ARN"
-        value = aws_bedrockagentcore_code_interpreter.main.arn
+        value = aws_bedrockagentcore_code_interpreter.main.code_interpreter_arn
       },
       {
         name  = "SENSITIVE_BUCKET"

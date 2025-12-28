@@ -17,12 +17,12 @@ output "ecr_repository_url" {
 
 output "code_interpreter_id" {
   description = "Code Interpreter ID"
-  value       = aws_bedrockagentcore_code_interpreter.main.id
+  value       = aws_bedrockagentcore_code_interpreter.main.code_interpreter_id
 }
 
 output "code_interpreter_arn" {
   description = "Code Interpreter ARN"
-  value       = aws_bedrockagentcore_code_interpreter.main.arn
+  value       = aws_bedrockagentcore_code_interpreter.main.code_interpreter_arn
 }
 
 output "sensitive_bucket" {

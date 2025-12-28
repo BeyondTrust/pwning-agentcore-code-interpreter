@@ -52,3 +52,9 @@ variable "domain_name" {
   default     = "bt-research-control.com"
 }
 
+variable "resource_suffix" {
+  description = "Suffix to append to resource names for uniqueness"
+  type        = string
+  default     = ""
+}
+
