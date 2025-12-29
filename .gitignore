@@ -17,13 +17,13 @@ venv
 tmp/
 
 # Terraform
-terraform/.terraform/
-terraform/.terraform.lock.hcl
-terraform/terraform.tfstate*
-terraform/.terraform.tfstate*
-terraform/terraform.tfstate.backup
-terraform/terraform.tfvars
-terraform/*.tfplan
+**/.**/
+**/.terraform.lock.hcl
+**/terraform.tfstate*
+**/.terraform.tfstate*
+**/terraform.tfstate.backup
+**/terraform.tfvars
+**/*.tfplan
 
 # Code interpreter session
 .session_id
@@ -31,3 +31,7 @@ terraform/*.tfplan
 
 # Repository specific
 *.log
+
+# Environment files (contain AWS profile names)
+.env
+**/.env

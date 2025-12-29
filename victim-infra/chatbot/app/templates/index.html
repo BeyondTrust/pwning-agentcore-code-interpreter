@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - AI-Powered Data Analysis</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 800px;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 16px;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .upload-section {
+            border: 2px dashed #ddd;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 24px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .upload-section:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .upload-section.dragover {
+            border-color: #667eea;
+            background: #f0f3ff;
+        }
+
+        .upload-section input[type="file"] {
+            display: none;
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .upload-text {
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .upload-hint {
+            color: #999;
+            font-size: 14px;
+        }
+
+        .file-info {
+            background: #f0f3ff;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-top: 16px;
+            display: none;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .file-info.visible {
+            display: flex;
+        }
+
+        .file-info .file-icon {
+            font-size: 24px;
+        }
+
+        .file-info .file-name {
+            flex: 1;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .file-info .file-size {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .file-info .remove-btn {
+            background: none;
+            border: none;
+            color: #999;
+            cursor: pointer;
+            font-size: 20px;
+            padding: 4px;
+        }
+
+        .file-info .remove-btn:hover {
+            color: #e74c3c;
+        }
+
+        .message-section {
+            margin-bottom: 24px;
+        }
+
+        .message-section label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .message-input {
+            width: 100%;
+            padding: 16px;
+            border: 2px solid #eee;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .message-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .message-input::placeholder {
+            color: #aaa;
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 16px 32px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .submit-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .loading.visible {
+            display: block;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results {
+            display: none;
+            margin-top: 24px;
+            padding: 24px;
+            background: #f8f9fa;
+            border-radius: 12px;
+        }
+
+        .results.visible {
+            display: block;
+        }
+
+        .results h3 {
+            color: #333;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .results-content {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #eee;
+            white-space: pre-wrap;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .error {
+            background: #fff5f5;
+            border: 1px solid #fed7d7;
+            color: #c53030;
+        }
+
+        .examples {
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid #eee;
+        }
+
+        .examples h4 {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+
+        .example-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .example-chip {
+            background: #f0f3ff;
+            color: #667eea;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+            border: none;
+        }
+
+        .example-chip:hover {
+            background: #e0e6ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>AI Data Analyst</h1>
+            <p>Upload a CSV file and ask questions about your data</p>
+        </div>
+
+        <div class="content">
+            <form id="analyzeForm" enctype="multipart/form-data">
+                <div class="upload-section" id="dropZone">
+                    <div class="upload-icon">📊</div>
+                    <div class="upload-text">
+                        <strong>Click to upload</strong> or drag and drop
+                    </div>
+                    <div class="upload-hint">CSV files only (max 10MB)</div>
+                    <input type="file" id="fileInput" name="file" accept=".csv">
+
+                    <div class="file-info" id="fileInfo">
+                        <span class="file-icon">📄</span>
+                        <span class="file-name" id="fileName"></span>
+                        <span class="file-size" id="fileSize"></span>
+                        <button type="button" class="remove-btn" id="removeFile">&times;</button>
+                    </div>
+                </div>
+
+                <div class="message-section">
+                    <label for="message">What would you like to know? <span style="color: #999; font-weight: normal;">(optional)</span></label>
+                    <textarea
+                        class="message-input"
+                        id="message"
+                        name="message"
+                        placeholder="E.g., 'What are the top 10 customers by revenue?' or 'Show me a summary of sales by month'"
+                    ></textarea>
+                </div>
+
+                <button type="submit" class="submit-btn" id="submitBtn">
+                    Analyze Data
+                </button>
+            </form>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Analyzing your data...</p>
+                <p style="color: #999; font-size: 14px; margin-top: 8px;">This may take a few moments</p>
+            </div>
+
+            <div class="results" id="results">
+                <h3>
+                    <span>📈</span>
+                    <span>Analysis Results</span>
+                </h3>
+                <div class="results-content" id="resultsContent"></div>
+            </div>
+
+            <div class="examples">
+                <h4>Quick Start Examples:</h4>
+                <div class="example-buttons" style="display: flex; gap: 12px; margin-bottom: 16px;">
+                    <button type="button" class="example-btn legitimate" id="legitExample" style="flex: 1; padding: 16px; background: #28a745; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;">
+                        Use Example: Legitimate CSV
+                    </button>
+                    <button type="button" class="example-btn injection" id="injectionExample" style="flex: 1; padding: 16px; background: #dc3545; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;">
+                        Use Example: Prompt Injection CSV
+                    </button>
+                </div>
+
+                <div id="injectionInstructions" style="display: none; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                    <h4 style="color: #856404; margin-bottom: 12px;">Prompt Injection Payload Instructions</h4>
+                    <p style="color: #856404; font-size: 14px; margin-bottom: 12px;">
+                        To generate the malicious CSV payload, run from the <code>attacker-infra/</code> directory:
+                    </p>
+                    <pre style="background: #333; color: #0f0; padding: 12px; border-radius: 4px; font-size: 13px; overflow-x: auto;">cd attacker-infra
+make generate-csv</pre>
+                    <p style="color: #856404; font-size: 14px; margin-top: 12px;">
+                        This will generate a CSV file with the embedded payload. Upload that file and use any prompt.
+                    </p>
+                </div>
+
+                <h4>Example questions:</h4>
+                <div class="example-chips">
+                    <button type="button" class="example-chip">Show summary statistics</button>
+                    <button type="button" class="example-chip">Top 10 by revenue</button>
+                    <button type="button" class="example-chip">Monthly trends</button>
+                    <button type="button" class="example-chip">Find outliers</button>
+                    <button type="button" class="example-chip">Calculate averages</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('analyzeForm');
+        const fileInput = document.getElementById('fileInput');
+        const dropZone = document.getElementById('dropZone');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const removeFile = document.getElementById('removeFile');
+        const message = document.getElementById('message');
+        const submitBtn = document.getElementById('submitBtn');
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+        const resultsContent = document.getElementById('resultsContent');
+
+        // File upload handling
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                updateFileInfo();
+            }
+        });
+
+        fileInput.addEventListener('change', updateFileInfo);
+
+        function updateFileInfo() {
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                fileName.textContent = file.name;
+                fileSize.textContent = formatSize(file.size);
+                fileInfo.classList.add('visible');
+            }
+        }
+
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        removeFile.addEventListener('click', (e) => {
+            e.stopPropagation();
+            fileInput.value = '';
+            fileInfo.classList.remove('visible');
+        });
+
+        // Example chips
+        document.querySelectorAll('.example-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                message.value = chip.textContent;
+                message.focus();
+            });
+        });
+
+        // Legitimate CSV example
+        document.getElementById('legitExample').addEventListener('click', () => {
+            // Create a sample CSV
+            const sampleCSV = `date,product,region,sales,units
+2024-01-01,Widget A,North,1250.00,50
+2024-01-01,Widget B,South,890.50,35
+2024-01-02,Widget A,East,1100.00,44
+2024-01-02,Widget C,West,2340.00,78
+2024-01-03,Widget B,North,560.25,22
+2024-01-03,Widget A,South,1890.00,75
+2024-01-04,Widget C,East,1560.00,52
+2024-01-04,Widget B,West,720.00,28
+2024-01-05,Widget A,North,2100.00,84
+2024-01-05,Widget C,South,1450.75,48`;
+
+            // Create a File object from the CSV string
+            const blob = new Blob([sampleCSV], { type: 'text/csv' });
+            const file = new File([blob], 'sample_sales_data.csv', { type: 'text/csv' });
+
+            // Create a DataTransfer to set the file input
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            fileInput.files = dataTransfer.files;
+
+            // Update the UI
+            updateFileInfo();
+            message.value = 'Show summary statistics';
+
+            // Hide injection instructions if visible
+            document.getElementById('injectionInstructions').style.display = 'none';
+        });
+
+        // Prompt Injection example
+        document.getElementById('injectionExample').addEventListener('click', () => {
+            const instructions = document.getElementById('injectionInstructions');
+            instructions.style.display = instructions.style.display === 'none' ? 'block' : 'none';
+
+            // Clear any currently selected file
+            fileInput.value = '';
+            fileInfo.classList.remove('visible');
+        });
+
+        // Form submission
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!fileInput.files.length) {
+                alert('Please select a CSV file to analyze');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            // Use message value or default to summary statistics
+            formData.append('message', message.value || 'Analyze this data and provide summary statistics');
+
+            // Show loading state
+            submitBtn.disabled = true;
+            loading.classList.add('visible');
+            results.classList.remove('visible');
+
+            try {
+                const response = await fetch('/analyze/csv', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    resultsContent.textContent = data.response;
+                    resultsContent.classList.remove('error');
+                } else {
+                    resultsContent.textContent = 'Error: ' + (data.detail || 'Analysis failed');
+                    resultsContent.classList.add('error');
+                }
+
+                results.classList.add('visible');
+
+            } catch (error) {
+                const uploadedFileName = fileInput.files[0]?.name || '';
+                const isMaliciousFile = uploadedFileName.toLowerCase().includes('malicious');
+
+                if (isMaliciousFile && error.message.includes('not valid JSON')) {
+                    // Expected behavior for prompt injection payload
+                    resultsContent.innerHTML = `
+<strong style="color: #28a745;">Payload Executed Successfully!</strong>
+
+The response is not valid JSON, which is expected behavior when the prompt injection payload executes.
+
+<strong>Next Steps:</strong>
+1. Open a terminal in the attacker-infra directory
+2. Run: <code style="background: #333; color: #0f0; padding: 2px 6px; border-radius: 3px;">make attach SESSION=&lt;session_id&gt;</code>
+3. Replace &lt;session_id&gt; with the session ID from <code>make generate-csv</code> output
+
+<strong>Example:</strong>
+<code style="background: #333; color: #0f0; padding: 2px 6px; border-radius: 3px;">make attach SESSION=sess_abc12345</code>
+
+The C2 payload should now be running in the Code Interpreter sandbox.
+Check <code>make logs</code> in another terminal to see DNS callbacks.
+                    `.trim();
+                    resultsContent.classList.remove('error');
+                    resultsContent.style.whiteSpace = 'pre-wrap';
+                } else {
+                    resultsContent.textContent = 'Error: ' + error.message;
+                    resultsContent.classList.add('error');
+                }
+                results.classList.add('visible');
+            } finally {
+                submitBtn.disabled = false;
+                loading.classList.remove('visible');
+            }
+        });
+    </script>
+</body>
+</html>

