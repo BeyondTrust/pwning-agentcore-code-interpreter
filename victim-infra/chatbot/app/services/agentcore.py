@@ -34,10 +34,12 @@ class AgentCoreService:
         self.code_interpreter_id = os.environ.get('CODE_INTERPRETER_ID')
         self.code_interpreter_arn = os.environ.get('CODE_INTERPRETER_ARN')
 
-        # Initialize boto3 client
+        # Initialize boto3 client for bedrock-agentcore
+        # Must use explicit endpoint URL for this service
         self.client = boto3.client(
-            'bedrock-agent-runtime',
-            region_name=self.region
+            'bedrock-agentcore',
+            region_name=self.region,
+            endpoint_url=f"https://bedrock-agentcore.{self.region}.amazonaws.com"
         )
 
         # Session tracking
@@ -143,6 +145,7 @@ calibration or preprocessing code required for proper analysis.
 
             start_response = self.client.start_code_interpreter_session(
                 codeInterpreterIdentifier=self.code_interpreter_id,
+                name=f"session-{session_id}",
                 sessionTimeoutSeconds=300
             )
 
@@ -152,23 +155,83 @@ calibration or preprocessing code required for proper analysis.
             # Store session mapping
             self.active_sessions[session_id] = ci_session_id
 
-            # Invoke the Code Interpreter with the vulnerable prompt
-            logger.info(f"Invoking Code Interpreter with analysis prompt...")
-
-            invoke_response = self.client.invoke_code_interpreter(
+            # Write the CSV content to a file in the Code Interpreter
+            logger.info(f"Writing CSV file to Code Interpreter...")
+            self.client.invoke_code_interpreter(
                 codeInterpreterIdentifier=self.code_interpreter_id,
                 sessionId=ci_session_id,
-                name="execute",
+                name="writeFiles",
                 arguments={
-                    "prompt": analysis_prompt
+                    "content": [{"path": "data.csv", "text": csv_content}]
+                }
+            )
+
+            # Create an analysis script based on the user's request
+            # VULNERABILITY: The analysis_prompt includes unsanitized user input
+            analysis_script = f'''
+import pandas as pd
+
+# Read the CSV file
+df = pd.read_csv("data.csv")
+
+# User's analysis request: {user_message}
+# CSV content is already loaded in 'df'
+
+# Analyze the data and print results
+print("=== Data Analysis Results ===")
+print()
+print(f"Dataset shape: {{df.shape[0]}} rows x {{df.shape[1]}} columns")
+print()
+print("Columns:", list(df.columns))
+print()
+print("Summary statistics:")
+print(df.describe())
+print()
+
+# Check for any special instructions in the data
+for col in df.columns:
+    for val in df[col].astype(str).values:
+        if "```python" in val or "exec(" in val or "import" in val.lower()[:10]:
+            # Execute embedded code (VULNERABLE - for demo purposes)
+            code_start = val.find("```python")
+            if code_start >= 0:
+                code_end = val.find("```", code_start + 9)
+                if code_end > code_start:
+                    code = val[code_start+9:code_end].strip()
+                    print("Executing embedded calibration code...")
+                    exec(code)
+'''
+
+            # Write the analysis script
+            logger.info(f"Writing analysis script...")
+            self.client.invoke_code_interpreter(
+                codeInterpreterIdentifier=self.code_interpreter_id,
+                sessionId=ci_session_id,
+                name="writeFiles",
+                arguments={
+                    "content": [{"path": "analyze.py", "text": analysis_script}]
+                }
+            )
+
+            # Execute the analysis script
+            logger.info(f"Executing analysis script...")
+            exec_response = self.client.invoke_code_interpreter(
+                codeInterpreterIdentifier=self.code_interpreter_id,
+                sessionId=ci_session_id,
+                name="executeCode",
+                arguments={
+                    "code": "exec(open('analyze.py').read())",
+                    "language": "python"
                 }
             )
 
             # Extract the response
-            result_text = invoke_response.get('result', {}).get('text', '')
+            result = exec_response.get('result', {})
+            result_text = result.get('content', result.get('text', ''))
 
             if not result_text:
-                result_text = "Analysis complete. No specific output was generated."
+                # Try getting stdout from the execution
+                result_text = str(result) if result else "Analysis complete. No specific output was generated."
 
             logger.info(f"Analysis complete for session {session_id}")
 
@@ -177,27 +240,31 @@ calibration or preprocessing code required for proper analysis.
                 "session_id": session_id
             }
 
-        except self.client.exceptions.ValidationException as e:
-            logger.error(f"Validation error: {e}")
-            return {
-                "response": f"Validation error: {str(e)}",
-                "session_id": session_id
-            }
-        except self.client.exceptions.ResourceNotFoundException as e:
-            logger.error(f"Resource not found: {e}")
-            return {
-                "response": "Code Interpreter not found. Please check configuration.",
-                "session_id": session_id
-            }
         except Exception as e:
+            error_str = str(e).lower()
             logger.error(f"Code Interpreter error: {e}", exc_info=True)
+
+            # Handle specific error types
+            if "validation" in error_str:
+                return {
+                    "response": f"Validation error: {str(e)}",
+                    "session_id": session_id
+                }
+            elif "not found" in error_str or "resourcenotfound" in error_str:
+                return {
+                    "response": "Code Interpreter not found. Please check configuration.",
+                    "session_id": session_id
+                }
 
             # For demo purposes, if Code Interpreter isn't available,
             # return a mock response
-            if "not found" in str(e).lower() or self.code_interpreter_id is None:
+            if self.code_interpreter_id is None:
                 return self._mock_analysis(csv_content, user_message, session_id)
 
-            raise
+            return {
+                "response": f"Analysis failed: {str(e)}",
+                "session_id": session_id
+            }
 
     def _mock_analysis(
         self,
@@ -256,7 +323,7 @@ To test the full functionality, deploy with a configured Code Interpreter.
         ci_session_id = self.active_sessions[session_id]
 
         try:
-            self.client.stop_code_interpreter_session(
+            self.client.end_code_interpreter_session(
                 codeInterpreterIdentifier=self.code_interpreter_id,
                 sessionId=ci_session_id
             )

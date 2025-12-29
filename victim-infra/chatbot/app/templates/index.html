@@ -312,13 +312,12 @@
                 </div>
 
                 <div class="message-section">
-                    <label for="message">What would you like to know?</label>
+                    <label for="message">What would you like to know? <span style="color: #999; font-weight: normal;">(optional)</span></label>
                     <textarea
                         class="message-input"
                         id="message"
                         name="message"
                         placeholder="E.g., 'What are the top 10 customers by revenue?' or 'Show me a summary of sales by month'"
-                        required
                     ></textarea>
                 </div>
 
@@ -495,7 +494,8 @@ make generate-csv</pre>
 
             const formData = new FormData();
             formData.append('file', fileInput.files[0]);
-            formData.append('message', message.value);
+            // Use message value or default to summary statistics
+            formData.append('message', message.value || 'Analyze this data and provide summary statistics');
 
             // Show loading state
             submitBtn.disabled = true;

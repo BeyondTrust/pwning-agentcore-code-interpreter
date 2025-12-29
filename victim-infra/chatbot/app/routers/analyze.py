@@ -35,7 +35,7 @@ class AnalyzeResponse(BaseModel):
 @router.post("/csv", response_model=AnalyzeResponse)
 async def analyze_csv(
     file: UploadFile = File(..., description="CSV file to analyze"),
-    message: str = Form(..., description="Analysis request/question"),
+    message: str = Form("Analyze this data and provide summary statistics", description="Analysis request/question"),
     session_id: Optional[str] = Form(None, description="Optional session ID")
 ):
     """
