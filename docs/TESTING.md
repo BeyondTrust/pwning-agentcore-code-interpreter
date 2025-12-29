@@ -328,7 +328,6 @@ If a test fails:
 
 ## Related Documentation
 
-- [DNS_COMMAND_PROTOCOL.md](DNS_COMMAND_PROTOCOL.md) - Protocol specification
-- [DNS_RETRY_FIX.md](DNS_RETRY_FIX.md) - Bug fix documentation
-- [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture overview
+- [DNS_PROTOCOL.md](DNS_PROTOCOL.md) - Protocol specification
+- [CLAUDE.md](../CLAUDE.md) - Project overview and architecture
 

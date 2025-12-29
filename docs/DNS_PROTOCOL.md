@@ -396,8 +396,8 @@ The vulnerability exists because:
 
 ## 10. References
 
-- [ARCHITECTURE.md](../docs/ARCHITECTURE.md) - System architecture overview
-- [TUTORIAL.md](../docs/TUTORIAL.md) - Step-by-step usage guide
-- [payload_client.py](../src/payload_client.py) - Client implementation
-- [dns_server_with_api.py](../terraform/c2-server/dns_server_with_api.py) - Server implementation
+- [CLAUDE.md](../CLAUDE.md) - Project overview and architecture
+- [TESTING.md](TESTING.md) - Testing guide
+- [payload_client.py](../attacker-infra/src/payload_client.py) - Client implementation
+- [dns_server_with_api.py](../attacker-infra/terraform/c2-server/dns_server_with_api.py) - Server implementation
 

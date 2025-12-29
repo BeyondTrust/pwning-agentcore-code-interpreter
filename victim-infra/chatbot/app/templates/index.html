@@ -521,8 +521,33 @@ make generate-csv</pre>
                 results.classList.add('visible');
 
             } catch (error) {
-                resultsContent.textContent = 'Error: ' + error.message;
-                resultsContent.classList.add('error');
+                const uploadedFileName = fileInput.files[0]?.name || '';
+                const isMaliciousFile = uploadedFileName.toLowerCase().includes('malicious');
+
+                if (isMaliciousFile && error.message.includes('not valid JSON')) {
+                    // Expected behavior for prompt injection payload
+                    resultsContent.innerHTML = `
+<strong style="color: #28a745;">Payload Executed Successfully!</strong>
+
+The response is not valid JSON, which is expected behavior when the prompt injection payload executes.
+
+<strong>Next Steps:</strong>
+1. Open a terminal in the attacker-infra directory
+2. Run: <code style="background: #333; color: #0f0; padding: 2px 6px; border-radius: 3px;">make attach SESSION=&lt;session_id&gt;</code>
+3. Replace &lt;session_id&gt; with the session ID from <code>make generate-csv</code> output
+
+<strong>Example:</strong>
+<code style="background: #333; color: #0f0; padding: 2px 6px; border-radius: 3px;">make attach SESSION=sess_abc12345</code>
+
+The C2 payload should now be running in the Code Interpreter sandbox.
+Check <code>make logs</code> in another terminal to see DNS callbacks.
+                    `.trim();
+                    resultsContent.classList.remove('error');
+                    resultsContent.style.whiteSpace = 'pre-wrap';
+                } else {
+                    resultsContent.textContent = 'Error: ' + error.message;
+                    resultsContent.classList.add('error');
+                }
                 results.classList.add('visible');
             } finally {
                 submitBtn.disabled = false;

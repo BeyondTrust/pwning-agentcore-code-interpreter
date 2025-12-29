@@ -1,3 +1,5 @@
+> **⚠️ HISTORICAL DOCUMENT**: This technical specification was used to design the two-infrastructure architecture. The implementation is now complete. Some file paths (like `shared/` directory) are outdated. See [CLAUDE.md](../CLAUDE.md) for current project structure.
+
 # Technical Specification: Realistic Prompt Injection Attack via Vulnerable Chatbot
 
 **Version:** 2.0

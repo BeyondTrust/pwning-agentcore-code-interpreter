@@ -22,7 +22,6 @@ agentcore-sandbox-breakout/
 ├── victim-infra/            # Victim's AWS account
 │   ├── terraform/           # Chatbot infrastructure
 │   └── chatbot/             # FastAPI application
-├── shared/                  # Shared code
 └── docs/                    # Specifications
 ```
 
@@ -76,7 +75,7 @@ agentcore-sandbox-breakout/
   - S3/DynamoDB with demo "sensitive" data
 
 ### DNS Protocol Library
-- **Location**: `shared/dns_protocol.py`
+- **Location**: `attacker-infra/src/dns_protocol.py`
 - **Purpose**: Pure functions for DNS encoding/decoding (testable, reusable)
 - **Design**: Separated for unit testing without dependencies
 
@@ -270,9 +269,6 @@ agentcore-sandbox-breakout/
 │   │   ├── iam.tf                  # IAM roles (intentionally overprivileged)
 │   │   └── sensitive_data.tf       # Demo S3/DynamoDB data
 │   └── Makefile                    # Victim commands
-│
-├── shared/                         # Shared utilities
-│   └── dns_protocol.py             # DNS encoding/decoding
 │
 ├── docs/                           # Documentation
 │   ├── TECH_SPEC_V2.md             # Technical specification

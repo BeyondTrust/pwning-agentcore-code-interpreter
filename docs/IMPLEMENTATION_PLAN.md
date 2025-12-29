@@ -1,3 +1,5 @@
+> **⚠️ HISTORICAL DOCUMENT**: This implementation plan was used to guide the initial development of the two-infrastructure architecture. The implementation is now complete. Some details (like `shared/` and `helpers/` directories) are outdated. See [CLAUDE.md](../CLAUDE.md) for current project structure.
+
 # Implementation Plan: Realistic Prompt Injection Attack Demo
 
 ## Overview
