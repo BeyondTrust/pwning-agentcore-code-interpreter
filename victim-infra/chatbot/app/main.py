@@ -10,19 +10,21 @@ the Code Interpreter without sanitization, enabling prompt injection.
 """
 
 import logging
-import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.routers import chat, analyze
+from app.config import get_settings
+
+# Get settings
+settings = get_settings()
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, settings.log_level.upper()),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -32,7 +34,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     logger.info("Starting Victim Chatbot Application")
-    logger.info(f"Code Interpreter ID: {os.environ.get('CODE_INTERPRETER_ID', 'NOT SET')}")
+    logger.info(f"Code Interpreter ID: {settings.code_interpreter_id or 'NOT SET'}")
     yield
     logger.info("Shutting down Victim Chatbot Application")
 
@@ -58,7 +60,7 @@ async def health_check():
     return {
         "status": "healthy",
         "service": "victim-chatbot",
-        "code_interpreter": os.environ.get('CODE_INTERPRETER_ID', 'not-configured')
+        "code_interpreter": settings.code_interpreter_id or "not-configured"
     }
 
 

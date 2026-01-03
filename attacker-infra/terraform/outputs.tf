@@ -48,6 +48,11 @@ output "c2_fqdn" {
   value       = aws_route53_record.c2_ns.fqdn
 }
 
+output "domain" {
+  description = "C2 domain for DNS tunneling (without trailing dot)"
+  value       = trimsuffix(aws_route53_record.c2_ns.fqdn, ".")
+}
+
 output "s3_bucket" {
   description = "S3 bucket name for C2 artifacts"
   value       = aws_s3_bucket.c2_artifacts.id

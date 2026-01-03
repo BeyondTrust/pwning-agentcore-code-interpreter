@@ -11,10 +11,10 @@ messages and CSV content are directly concatenated into the prompt.
 
 import boto3
 import logging
-import os
 import uuid
-import time
 from typing import Optional
+
+from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +30,10 @@ class AgentCoreService:
 
     def __init__(self):
         """Initialize the AgentCore service."""
-        self.region = os.environ.get('AWS_REGION', 'us-east-1')
-        self.code_interpreter_id = os.environ.get('CODE_INTERPRETER_ID')
-        self.code_interpreter_arn = os.environ.get('CODE_INTERPRETER_ARN')
+        settings = get_settings()
+        self.region = settings.aws_region
+        self.code_interpreter_id = settings.code_interpreter_id
+        self.code_interpreter_arn = settings.code_interpreter_arn
 
         # Initialize boto3 client for bedrock-agentcore
         # Must use explicit endpoint URL for this service
@@ -45,7 +46,7 @@ class AgentCoreService:
         # Session tracking
         self.active_sessions = {}
 
-        logger.info(f"AgentCore service initialized")
+        logger.info("AgentCore service initialized")
         logger.info(f"  Region: {self.region}")
         logger.info(f"  Code Interpreter ID: {self.code_interpreter_id}")
 

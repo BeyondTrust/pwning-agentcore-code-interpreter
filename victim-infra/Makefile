@@ -16,17 +16,22 @@ ECR_REPO = $(shell cd terraform && terraform output -raw ecr_repository_url 2>/d
 # Setup
 # =============================================================================
 
-setup-env:
+venv:
 	python3 -m venv venv
-	. venv/bin/activate && python3 -m pip install --upgrade pip
+	./venv/bin/pip install --upgrade pip
 
-install: setup-env
-	@if [ -z "$$VIRTUAL_ENV" ]; then \
-		echo "Activating venv and installing dependencies..."; \
-		. venv/bin/activate && python3 -m pip install -r chatbot/requirements.txt; \
-	else \
-		python3 -m pip install -r chatbot/requirements.txt; \
-	fi
+setup: venv
+	cd chatbot && ../venv/bin/pip install -e .
+	@echo ""
+	@echo "Setup complete! Activate with: source venv/bin/activate"
+
+# Generate .env from Terraform outputs
+.env: terraform/.terraform
+	@echo "# Generated from Terraform outputs" > .env
+	@echo "AWS_REGION=us-east-1" >> .env
+	@echo "CODE_INTERPRETER_ID=$$(cd terraform && terraform output -raw code_interpreter_id)" >> .env
+	@echo "CODE_INTERPRETER_ARN=$$(cd terraform && terraform output -raw code_interpreter_arn)" >> .env
+	@echo "Generated .env file"
 
 # =============================================================================
 # Terraform
@@ -44,9 +49,10 @@ terraform-apply:
 terraform-destroy:
 	cd terraform && terraform destroy
 
-# Full deploy: init + plan + apply (auto-approve)
+# Full deploy: init + plan + apply (auto-approve) + generate .env
 terraform-yolo: terraform-init
 	cd terraform && terraform plan && terraform apply -auto-approve
+	$(MAKE) .env
 	@echo ""
 	@echo "✓ Infrastructure deployed!"
 
@@ -169,7 +175,7 @@ clean:
 destroy: terraform-destroy clean
 	@echo "✓ All victim infrastructure destroyed"
 
-.PHONY: setup-env install terraform-init terraform-plan terraform-apply terraform-destroy \
+.PHONY: venv setup terraform-init terraform-plan terraform-apply terraform-destroy \
         terraform-deploy docker-build docker-run-local docker-login docker-tag docker-push \
         ecs-redeploy ecs-status ecs-logs show-url show-outputs show-attack-command \
         deploy set-env local clean destroy
