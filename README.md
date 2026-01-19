@@ -75,11 +75,20 @@ This repository now contains two separate infrastructures to demonstrate a reali
 agentcore-sandbox-breakout/
 ├── attacker-infra/          # Attacker's AWS account
 │   ├── terraform/           # C2 server infrastructure (EC2, Route53, DNS)
-│   ├── src/                 # Attack tools and C2 client
-│   │   ├── attacker_shell.py    # Operator interface
-│   │   ├── attack_client.py     # HTTP client for prompt injection
-│   │   ├── csv_payload_generator.py  # Malicious CSV generator
-│   │   └── payload_client.py    # Payload for Code Interpreter
+│   ├── c2/                  # C2 Python package (installable CLI)
+│   │   ├── cli/             # Click CLI commands
+│   │   │   ├── main.py      # CLI entry point
+│   │   │   ├── attack.py    # Attack commands
+│   │   │   └── session.py   # Session management
+│   │   ├── core/            # Core functionality
+│   │   │   ├── attack_client.py     # HTTP client for prompt injection
+│   │   │   ├── payload_generator.py # Malicious CSV generator
+│   │   │   ├── dns_protocol.py      # DNS encoding/decoding
+│   │   │   └── session_manager.py   # C2 session management
+│   │   └── payload/         # Payload for Code Interpreter
+│   │       └── client.py    # DNS C2 client payload
+│   ├── tests/               # Unit and integration tests
+│   ├── pyproject.toml       # Package definition
 │   └── Makefile
 │
 ├── victim-infra/            # Victim's AWS account
@@ -107,8 +116,8 @@ The enhanced demo shows that an attacker with **NO AWS credentials** to the vict
 ```bash
 # Terminal 1: Deploy attacker infrastructure
 cd attacker-infra
-make terraform-yolo
-source set_env_vars.sh
+make setup    # Create venv and install c2 CLI
+make deploy   # Deploy infrastructure (auto-generates .env)
 
 # Terminal 2: Deploy victim infrastructure (separate AWS account recommended)
 cd victim-infra
@@ -132,7 +141,7 @@ make attach SESSION=sess_abc123
 ### Prerequisites
 
 - AWS CLI configured
-- Python 3.12
+- Python 3.11+
 - Terraform installed with the latest provider
 
 ### Step 1: Deploy C2 Infrastructure
@@ -155,9 +164,11 @@ Deploy the C2 server infrastructure:
 ```bash
 cd attacker-infra
 
-# Deploy infrastructure
-make terraform-yolo
-source set_env_vars.sh
+# Set up Python environment and install c2 CLI
+make setup
+
+# Deploy infrastructure (auto-generates .env with EC2_IP, DOMAIN, etc.)
+make deploy
 ```
 
 ### Step 2: Generate and Send Malicious Payload
