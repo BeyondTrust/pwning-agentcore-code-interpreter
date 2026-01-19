@@ -23,45 +23,48 @@ import json
 from dnslib import DNSRecord, DNSHeader, RR, QTYPE, TXT, A
 from dnslib.server import DNSServer, BaseResolver
 
-# Configure logging to both file and console
-log_dir = '/var/log/dns-c2'
-log_file = os.path.join(log_dir, 'dns_server.log')
-
-# Create log directory if it doesn't exist (skip if no permissions, e.g., during testing)
-try:
-    os.makedirs(log_dir, exist_ok=True)
-except PermissionError:
-    # Fall back to current directory for testing
-    log_dir = '.'
-    log_file = 'dns_server.log'
-
-# Configure logging with immediate flush
-file_handler = logging.FileHandler(log_file)
-file_handler.setLevel(logging.INFO)
-file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-
-console_handler = logging.StreamHandler(sys.stdout)
-console_handler.setLevel(logging.INFO)
-console_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-
-logging.basicConfig(
-    level=logging.INFO,
-    handlers=[file_handler, console_handler]
-)
-
+# Logger placeholder - configured in setup_logging() when run as main
 logger = logging.getLogger(__name__)
 
-# Force unbuffered output
-sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', buffering=1)
-sys.stderr = os.fdopen(sys.stderr.fileno(), 'w', buffering=1)
 
-# Log startup
-logger.info("=" * 60)
-logger.info("DNS C2 Server Starting...")
-logger.info(f"Log file: {log_file}")
-logger.info(f"DNS Port: 53")
-logger.info(f"API Port: 8080")
-logger.info("=" * 60)
+def setup_logging():
+    """Configure logging for production server. Only called when run as main."""
+    log_dir = '/var/log/dns-c2'
+    log_file = os.path.join(log_dir, 'dns_server.log')
+
+    # Create log directory if it doesn't exist
+    try:
+        os.makedirs(log_dir, exist_ok=True)
+    except PermissionError:
+        # Fall back to current directory
+        log_dir = '.'
+        log_file = 'dns_server.log'
+
+    # Configure logging with immediate flush
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+
+    logging.basicConfig(
+        level=logging.INFO,
+        handlers=[file_handler, console_handler]
+    )
+
+    # Force unbuffered output
+    sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', buffering=1)
+    sys.stderr = os.fdopen(sys.stderr.fileno(), 'w', buffering=1)
+
+    # Log startup
+    logger.info("=" * 60)
+    logger.info("DNS C2 Server Starting...")
+    logger.info(f"Log file: {log_file}")
+    logger.info(f"DNS Port: 53")
+    logger.info(f"API Port: 8080")
+    logger.info("=" * 60)
 
 
 # ============================================================================
@@ -682,7 +685,9 @@ class DNSServerWithAPI:
 def main():
     """Run the DNS server with API."""
     import argparse
-    
+
+    setup_logging()
+
     parser = argparse.ArgumentParser(description='DNS C&C Server with HTTP API')
     parser.add_argument('--domain', default='c2.bt-research-control.com', 
                         help='Domain for DNS queries')
