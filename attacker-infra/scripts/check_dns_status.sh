@@ -1,9 +1,16 @@
 #!/bin/bash
 # Check DNS C2 server status on EC2
 
+# Load .env file if it exists
+if [ -f "$(dirname "$0")/../.env" ]; then
+    set -a
+    source "$(dirname "$0")/../.env"
+    set +a
+fi
+
 if [ -z "$EC2_INSTANCE_ID" ]; then
     echo "Error: EC2_INSTANCE_ID not set"
-    echo "Run: source set_env_vars.sh"
+    echo "Make sure .env file exists (run: make deploy)"
     exit 1
 fi
 

@@ -10,7 +10,7 @@ import sys
 import base64
 from pathlib import Path
 
-# Add src to path to import helper functions
+# Add terraform/c2-server to path to import DNS server helper functions
 sys.path.insert(0, str(Path(__file__).parent.parent / 'terraform' / 'c2-server'))
 
 from dns_server_with_api import encode_chunk_to_ip

@@ -7,14 +7,9 @@ Or: python3 tests/test_dns_protocol.py
 """
 
 import unittest
-import sys
 import base64
-from pathlib import Path
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
-
-from dns_protocol import (
+from c2.core.dns_protocol import (
     encode_command_to_base64,
     decode_base64_to_command,
     split_into_chunks,

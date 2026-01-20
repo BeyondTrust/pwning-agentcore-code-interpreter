@@ -1,10 +1,17 @@
 #!/bin/bash
 # Configure EC2 instance with DNS server
 
+# Load .env file if it exists and vars aren't already set
+if [ -f "$(dirname "$0")/../.env" ]; then
+    set -a
+    source "$(dirname "$0")/../.env"
+    set +a
+fi
+
 # Check required environment variables first (before set -e)
 if [ -z "$EC2_INSTANCE_ID" ] || [ -z "$S3_BUCKET" ] || [ -z "$DOMAIN" ]; then
     echo "Error: Required environment variables not set"
-    echo "Please run: source set_env_vars.sh"
+    echo "Make sure .env file exists (run: make deploy)"
     return 1 2>/dev/null || exit 1
 fi
 
