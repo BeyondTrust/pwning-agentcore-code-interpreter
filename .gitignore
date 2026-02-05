@@ -33,6 +33,7 @@ tmp/
 
 # Repository specific
 *.log
+attacker-infra/malicious_data.csv
 
 # Environment files (contain AWS profile names)
 .env
