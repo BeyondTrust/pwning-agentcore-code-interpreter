@@ -15,16 +15,14 @@ The application passes user-controlled input (CSV content and messages) directly
 
 ## Local Development
 
-```bash
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate
+**Prerequisites:** Install [uv](https://docs.astral.sh/uv/getting-started/installation/) for Python dependency management.
 
+```bash
 # Install dependencies
-pip install -r requirements.txt
+uv sync
 
 # Run locally
-uvicorn app.main:app --reload --port 8000
+uv run uvicorn app.main:app --reload --port 8000
 ```
 
 ## Docker

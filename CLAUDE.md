@@ -105,13 +105,20 @@ The C2 protocol encodes data into DNS queries using this scheme:
 
 ## Common Development Commands
 
+### Prerequisites
+This project uses `uv` for Python dependency management. Install uv if you don't have it:
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# Or via Homebrew: brew install uv
+```
+
 ### Local Development (No AWS Required)
 ```bash
 # From repo root - one-time setup
-make install                    # Create venv and install all dependencies
+cd attacker-infra && make setup     # Install dependencies with uv
 
 # Run FastAPI chatbot locally
-make local-api                  # Starts server at http://localhost:8000
+cd victim-infra && make local       # Starts server at http://localhost:8000
 
 # The local server supports hot-reload - edit files and refresh browser
 ```
@@ -131,19 +138,23 @@ make deploy-victim              # Deploy chatbot only
 cd attacker-infra
 
 # One-time setup
-make setup-env                  # Create Python venv
-source venv/bin/activate        # Activate venv
-make install                    # Install dependencies from requirements.txt
+make setup                      # Install dependencies with uv
 
 # Deploy AWS infrastructure
-make terraform-yolo             # Deploy all infrastructure (init + plan + apply)
-source set_env_vars.sh          # Export env vars (EC2_IP, DOMAIN, EC2_INSTANCE_ID)
+make deploy                     # Deploy all infrastructure (init + plan + apply + configure)
+# Or step by step:
+make terraform-init             # Initialize Terraform
+make terraform-apply            # Apply infrastructure
+make env-from-terraform         # Generate .env from Terraform outputs
 make configure-ec2              # Deploy DNS server to EC2 and start it
 ```
 
 ### Victim Infrastructure Setup
 ```bash
 cd victim-infra
+
+# One-time setup
+make setup                      # Install dependencies with uv
 
 # Deploy all resources
 make deploy                     # Terraform + Docker build/push + ECS deploy
@@ -159,14 +170,13 @@ make show-url                   # Get the chatbot URL
 ```bash
 cd attacker-infra
 
-# Run all tests (protocol + server + integration)
-make test                       # Run all three test suites
-make test-verbose               # Verbose output with detailed assertions
+# Run all tests
+make test                       # Run all test suites with uv
 
-# Run specific test suites (direct execution)
-python3 tests/test_dns_protocol.py     # 36 tests - Pure DNS encoding/decoding
-python3 tests/test_dns_server.py       # 27 tests - Server-side logic
-python3 tests/test_dns_integration.py  # 11 tests - End-to-end scenarios
+# Run specific test suites
+uv run pytest tests/test_dns_protocol.py -v     # DNS encoding/decoding
+uv run pytest tests/test_dns_server.py -v       # Server-side logic
+uv run pytest tests/test_dns_integration.py -v  # End-to-end scenarios
 ```
 
 ### Running the Attack (Realistic Demo)
@@ -211,12 +221,11 @@ make check-dns                  # Verify DNS server is running
 # View session activity
 tail -f attacker_shell.log      # All operator shell activity logged here
 
-# Operator shell variants
-make shell-interactive          # Interactive shell (same as make operator)
-make shell-interactive-verbose  # Interactive shell with verbose logging
-make shell-generate             # Generate payload and display it
-make shell-send CMD="whoami" SESSION="sess_abc123"  # Send command to specific session
-make shell-receive SESSION="sess_abc123"            # Retrieve output from session
+# Using the CLI directly
+uv run c2 --help                # Show all CLI commands
+uv run c2 generate-csv          # Generate payload
+uv run c2 send "whoami" -s sess_abc123  # Send command to session
+uv run c2 receive -s sess_abc123        # Retrieve output from session
 ```
 
 ### Cleanup

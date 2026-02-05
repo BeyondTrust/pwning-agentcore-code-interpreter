@@ -9,15 +9,21 @@ DNS C2 server and attack tools for the DNS exfiltration security demo.
 cp .env.example .env
 # Edit .env to set AWS_PROFILE
 
-# 2. Install Python dependencies
-make install
+# 2. Install dependencies with uv
+make setup
 
 # 3. Deploy C2 infrastructure
-make terraform-yolo
+make deploy
 
 # 4. Start operator shell
 make operator
 ```
+
+## Prerequisites
+
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) for Python dependency management
+- AWS CLI configured
+- Terraform
 
 ## Commands
 
@@ -25,12 +31,13 @@ make operator
 
 | Command | Description |
 |---------|-------------|
-| `make install` | Set up venv and install dependencies |
+| `make setup` | Install dependencies with uv |
 | `make terraform-init` | Initialize Terraform |
 | `make terraform-plan` | Preview changes |
 | `make terraform-apply` | Apply changes (with confirmation) |
-| `make terraform-yolo` | Init + plan + apply + configure EC2 |
+| `make deploy` | Init + plan + apply + configure EC2 |
 | `make configure-ec2` | Deploy DNS server to EC2 |
+| `make env-from-terraform` | Generate .env from Terraform outputs |
 
 ### Attack Operations
 
@@ -52,13 +59,25 @@ make operator
 | Command | Description |
 |---------|-------------|
 | `make test` | Run all tests |
-| `make test-verbose` | Run tests with verbose output |
 
 ### Cleanup
 
 | Command | Description |
 |---------|-------------|
+| `make clean` | Remove .venv and build artifacts |
 | `make terraform-destroy` | Destroy infrastructure |
+| `make destroy` | Destroy infrastructure and clean |
+
+## Using the CLI Directly
+
+```bash
+uv run c2 --help              # Show all commands
+uv run c2 generate-csv        # Generate malicious CSV
+uv run c2 attack <url>        # Attack a target
+uv run c2 send "cmd" -s <id>  # Send command to session
+uv run c2 receive -s <id>     # Receive output from session
+uv run c2 status              # Check C2 server status
+```
 
 ## Architecture
 
@@ -68,6 +87,6 @@ make operator
 
 ## DNS Protocol
 
-Commands flow: Operator → HTTP API (8080) → DNS Server → DNS Queries → Payload
+Commands flow: Operator -> HTTP API (8080) -> DNS Server -> DNS Queries -> Payload
 
-Data exfiltration: Payload → DNS Queries → DNS Server → CloudWatch Logs
+Data exfiltration: Payload -> DNS Queries -> DNS Server -> CloudWatch Logs

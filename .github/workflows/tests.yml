@@ -18,11 +18,14 @@ jobs:
       with:
         python-version: '3.11'
 
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+
     - name: Install dependencies
       working-directory: attacker-infra
-      run: |
-        python3 -m pip install --upgrade pip
-        pip install -e ".[dev]"
+      run: uv sync --all-extras
 
     - name: Run tests
       working-directory: attacker-infra

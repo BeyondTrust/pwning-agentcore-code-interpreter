@@ -20,6 +20,9 @@ from app.services.agentcore import AgentCoreService
 router = APIRouter(prefix="/analyze", tags=["analyze"])
 logger = logging.getLogger(__name__)
 
+# File size limit (50MB)
+MAX_CSV_SIZE = 50 * 1024 * 1024
+
 # Initialize service
 agentcore_service = AgentCoreService()
 
@@ -70,8 +73,13 @@ async def analyze_csv(
                 detail="Only CSV files are supported"
             )
 
-        # Read CSV content
-        csv_content = await file.read()
+        # Read CSV content with size limit
+        csv_content = await file.read(MAX_CSV_SIZE + 1)
+        if len(csv_content) > MAX_CSV_SIZE:
+            raise HTTPException(
+                status_code=413,
+                detail="File too large (max 50MB)"
+            )
 
         try:
             csv_text = csv_content.decode('utf-8')

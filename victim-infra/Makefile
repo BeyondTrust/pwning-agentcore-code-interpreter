@@ -16,17 +16,17 @@ ECR_REPO = $(shell cd terraform && terraform output -raw ecr_repository_url 2>/d
 # Setup
 # =============================================================================
 
-venv:
-	python3 -m venv venv
-	./venv/bin/pip install --upgrade pip
-
-setup: venv
-	cd chatbot && ../venv/bin/pip install -e .
+setup:
+	cd chatbot && uv sync
 	@echo ""
-	@echo "Setup complete! Activate with: source venv/bin/activate"
+	@echo "Setup complete! Run with: cd chatbot && uv run uvicorn app.main:app --reload"
 
-# Generate .env from Terraform outputs
-.env: terraform/.terraform
+# Generate .env from Terraform outputs (run after terraform-apply)
+env-from-terraform:
+	@if [ ! -d "terraform/.terraform" ]; then \
+		echo "Error: Run 'make terraform-init' first"; \
+		exit 1; \
+	fi
 	@echo "# Generated from Terraform outputs" > .env
 	@echo "AWS_REGION=us-east-1" >> .env
 	@echo "CODE_INTERPRETER_ID=$$(cd terraform && terraform output -raw code_interpreter_id)" >> .env
@@ -52,7 +52,7 @@ terraform-destroy:
 # Full deploy: init + plan + apply (auto-approve) + generate .env
 terraform-yolo: terraform-init
 	cd terraform && terraform plan && terraform apply -auto-approve
-	$(MAKE) .env
+	$(MAKE) env-from-terraform
 	@echo ""
 	@echo "✓ Infrastructure deployed!"
 
@@ -160,7 +160,7 @@ set-env:
 
 # Run chatbot locally (without AWS)
 local:
-	cd chatbot && uvicorn app.main:app --reload --port 8000
+	cd chatbot && uv run uvicorn app.main:app --reload --port 8000
 
 # =============================================================================
 # Cleanup
@@ -170,12 +170,13 @@ clean:
 	rm -rf chatbot/__pycache__
 	rm -rf chatbot/app/__pycache__
 	rm -rf chatbot/app/**/__pycache__
-	rm -rf venv
+	rm -rf chatbot/.venv
+	rm -rf .venv
 
 destroy: terraform-destroy clean
 	@echo "✓ All victim infrastructure destroyed"
 
-.PHONY: venv setup terraform-init terraform-plan terraform-apply terraform-destroy \
+.PHONY: setup terraform-init terraform-plan terraform-apply terraform-destroy \
         terraform-deploy docker-build docker-run-local docker-login docker-tag docker-push \
         ecs-redeploy ecs-status ecs-logs show-url show-outputs show-attack-command \
-        deploy set-env local clean destroy
+        deploy set-env local clean destroy env-from-terraform
