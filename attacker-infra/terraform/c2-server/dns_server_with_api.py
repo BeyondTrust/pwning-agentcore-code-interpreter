@@ -595,7 +595,7 @@ class APIHandler(BaseHTTPRequestHandler):
                                 try:
                                     self.server.resolver.client_commands[session_id].get_nowait()
                                     cleared_count += 1
-                                except:
+                                except Exception:
                                     break
                             if cleared_count > 0:
                                 logger.debug(f"[HTTP API] Cleared {cleared_count} old commands from queue for {session_id}")

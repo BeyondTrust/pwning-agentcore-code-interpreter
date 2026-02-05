@@ -11,7 +11,7 @@
 # orchestrates common operations across both.
 
 .PHONY: help setup deploy-all destroy-all attack demo \
-        deploy-attacker destroy-attacker operator generate-csv \
+        deploy-attacker destroy-attacker operator attach generate-csv \
         deploy-victim destroy-victim victim-url victim-local
 
 # Default target
@@ -27,8 +27,8 @@ help:
 	@echo ""
 	@echo "Attacker Infrastructure (attacker-infra/):"
 	@echo "  make deploy-attacker    Deploy C2 server to AWS"
-	@echo "  make operator           Start interactive C2 shell"
 	@echo "  make generate-csv       Generate malicious CSV payload"
+	@echo "  make attach             Attach to C2 session (reads .session_id)"
 	@echo ""
 	@echo "Victim Infrastructure (victim-infra/):"
 	@echo "  make deploy-victim      Deploy vulnerable chatbot to AWS"
@@ -63,7 +63,7 @@ deploy-attacker:
 destroy-attacker:
 	cd attacker-infra && $(MAKE) destroy
 
-operator:
+operator attach:
 	cd attacker-infra && $(MAKE) attach
 
 generate-csv:

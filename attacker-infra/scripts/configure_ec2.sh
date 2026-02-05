@@ -174,7 +174,8 @@ aws ssm get-command-invocation \
     --command-id "$COMMAND_ID" \
     --instance-id "$INSTANCE_ID" \
     --query 'StandardOutputContent' \
-    --output text
+    --output text \
+    --no-cli-pager
 
 echo ""
 echo "=========================================="
