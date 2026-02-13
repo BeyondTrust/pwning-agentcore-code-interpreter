@@ -12,15 +12,14 @@ resource "aws_security_group" "dns_shell" {
   )
 }
 
-# SSH ingress rules - looped for each allowed CIDR
+# SSH
 resource "aws_security_group_rule" "ssh" {
-  count             = length(var.ssh_allowed_cidrs)
   type              = "ingress"
   from_port         = 22
   to_port           = 22
   protocol          = "tcp"
-  cidr_blocks       = [var.ssh_allowed_cidrs[count.index]]
-  description       = count.index == 0 && var.ssh_allowed_cidrs[0] == "1.0.0.0/8" ? "SSH broad" : null
+  cidr_blocks       = var.allowed_ingress_cidrs
+  description       = "SSH"
   security_group_id = aws_security_group.dns_shell.id
 }
 
@@ -30,7 +29,7 @@ resource "aws_security_group_rule" "dns_tcp" {
   from_port         = 53
   to_port           = 53
   protocol          = "tcp"
-  cidr_blocks       = ["0.0.0.0/0"]
+  cidr_blocks       = var.allowed_ingress_cidrs
   description       = "DNS TCP"
   security_group_id = aws_security_group.dns_shell.id
 }
@@ -41,7 +40,7 @@ resource "aws_security_group_rule" "dns_udp" {
   from_port         = 53
   to_port           = 53
   protocol          = "udp"
-  cidr_blocks       = ["0.0.0.0/0"]
+  cidr_blocks       = var.allowed_ingress_cidrs
   description       = "DNS UDP"
   security_group_id = aws_security_group.dns_shell.id
 }
@@ -52,7 +51,8 @@ resource "aws_security_group_rule" "port_1337" {
   from_port         = 1337
   to_port           = 1337
   protocol          = "tcp"
-  cidr_blocks       = ["0.0.0.0/0"]
+  cidr_blocks       = var.allowed_ingress_cidrs
+  description       = "C2 listener"
   security_group_id = aws_security_group.dns_shell.id
 }
 
@@ -62,7 +62,7 @@ resource "aws_security_group_rule" "port_8080" {
   from_port         = 8080
   to_port           = 8080
   protocol          = "tcp"
-  cidr_blocks       = ["0.0.0.0/0"]
+  cidr_blocks       = var.allowed_ingress_cidrs
   description       = "DNS Shell Management Interface"
   security_group_id = aws_security_group.dns_shell.id
 }

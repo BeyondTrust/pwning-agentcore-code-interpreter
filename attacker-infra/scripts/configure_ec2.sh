@@ -58,37 +58,37 @@ echo ""
 
 # Install dependencies
 echo "[*] Installing dependencies..."
-sudo yum install -y python3-pip amazon-cloudwatch-agent 2>/dev/null || sudo apt-get install -y python3-pip amazon-cloudwatch-agent
-sudo pip3 install dnslib
+yum install -y python3-pip amazon-cloudwatch-agent 2>/dev/null || apt-get install -y python3-pip amazon-cloudwatch-agent
+pip3 install dnslib
 
 # Create log directory
 echo "[*] Creating log directory..."
-sudo mkdir -p /var/log/dns-c2
-sudo chmod 755 /var/log/dns-c2
+mkdir -p /var/log/dns-c2
+chmod 755 /var/log/dns-c2
 
 # Create directory in /opt (accessible by all users)
 echo "[*] Creating directory at /opt/dns-c2..."
-sudo mkdir -p /opt/dns-c2
+mkdir -p /opt/dns-c2
 cd /opt/dns-c2
 
 # Download DNS server from S3
 echo "[*] Downloading DNS server from S3..."
-sudo aws s3 cp "s3://$BUCKET/$DNS_PREFIX/dns_server_with_api.py" dns_server_with_api.py
+aws s3 cp "s3://$BUCKET/$DNS_PREFIX/dns_server_with_api.py" dns_server_with_api.py
 
 # Make readable by all users
-sudo chmod 755 /opt/dns-c2
-sudo chmod 644 /opt/dns-c2/dns_server_with_api.py
+chmod 755 /opt/dns-c2
+chmod 644 /opt/dns-c2/dns_server_with_api.py
 
 # Also create symlink in ssm-user home if it exists
 if [ -d "/home/ssm-user" ]; then
     echo "[*] Creating symlink for ssm-user..."
-    sudo ln -sf /opt/dns-c2 /home/ssm-user/dns-c2
-    sudo chown -h ssm-user:ssm-user /home/ssm-user/dns-c2
+    ln -sf /opt/dns-c2 /home/ssm-user/dns-c2
+    chown -h ssm-user:ssm-user /home/ssm-user/dns-c2
 fi
 
 # Configure CloudWatch Logs agent
 echo "[*] Configuring CloudWatch Logs agent..."
-sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json > /dev/null << CWCONFIG
+tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json > /dev/null << CWCONFIG
 {
   "logs": {
     "logs_collected": {
@@ -109,7 +109,7 @@ CWCONFIG
 
 # Start CloudWatch Logs agent
 echo "[*] Starting CloudWatch Logs agent..."
-sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
     -a fetch-config \
     -m ec2 \
     -s \
@@ -117,12 +117,12 @@ sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
 
 # Create start script (with API)
 echo "[*] Creating start script..."
-sudo tee /opt/dns-c2/start_dns_server.sh > /dev/null << STARTSCRIPT
+tee /opt/dns-c2/start_dns_server.sh > /dev/null << STARTSCRIPT
 #!/bin/bash
 cd /opt/dns-c2
-sudo python3 dns_server_with_api.py --domain $DOMAIN --dns-port 53 --api-port 8080
+python3 dns_server_with_api.py --domain $DOMAIN --dns-port 53 --api-port 8080
 STARTSCRIPT
-sudo chmod +x /opt/dns-c2/start_dns_server.sh
+chmod +x /opt/dns-c2/start_dns_server.sh
 
 echo ""
 echo "[✓] Setup complete!"
@@ -190,7 +190,7 @@ echo "[*] Stopping any existing DNS server processes..."
 aws ssm send-command \
     --instance-ids "$INSTANCE_ID" \
     --document-name "AWS-RunShellScript" \
-    --parameters 'commands=["sudo pkill -f dns_server || true"]' \
+    --parameters 'commands=["pkill -f dns_server || true"]' \
     --output text > /dev/null 2>&1
 
 sleep 2
@@ -199,7 +199,7 @@ echo "[*] Starting DNS C2 server with API..."
 START_CMD_ID=$(aws ssm send-command \
     --instance-ids "$INSTANCE_ID" \
     --document-name "AWS-RunShellScript" \
-    --parameters 'commands=["sudo nohup /opt/dns-c2/start_dns_server.sh > /var/log/dns-c2/startup.log 2>&1 &"]' \
+    --parameters 'commands=["nohup /opt/dns-c2/start_dns_server.sh > /var/log/dns-c2/startup.log 2>&1 &"]' \
     --output text \
     --query 'Command.CommandId')
 

@@ -34,6 +34,12 @@ variable "desired_count" {
   default     = 1
 }
 
+variable "allowed_ingress_cidrs" {
+  description = "List of CIDR blocks allowed for ingress (HTTP, HTTPS)"
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
 variable "tags" {
   description = "Tags to apply to resources"
   type        = map(string)

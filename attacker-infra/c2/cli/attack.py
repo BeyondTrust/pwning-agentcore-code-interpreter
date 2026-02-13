@@ -17,9 +17,9 @@ from c2.core.config import get_config
 @click.option(
     "--timeout",
     "-t",
-    default=120,
+    default=10,
     type=int,
-    help="Request timeout in seconds (default: 120)",
+    help="Request timeout in seconds (default: 10)",
 )
 @click.option(
     "--verbose",

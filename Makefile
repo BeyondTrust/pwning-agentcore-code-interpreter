@@ -10,8 +10,8 @@
 # Each infrastructure has its own venv and Makefile. This root Makefile
 # orchestrates common operations across both.
 
-.PHONY: help setup deploy-all destroy-all attack demo \
-        deploy-attacker destroy-attacker operator attach generate-csv \
+.PHONY: help setup deploy-all destroy-all exploit attack demo \
+        deploy-attacker destroy-attacker connect-session operator attach generate-csv \
         deploy-victim destroy-victim victim-url victim-local
 
 # Default target
@@ -23,12 +23,13 @@ help:
 	@echo "Quick Start:"
 	@echo "  make setup              Set up both infrastructures (venv + deps)"
 	@echo "  make deploy-all         Deploy both C2 server and victim chatbot"
-	@echo "  make attack TARGET=url  Run prompt injection attack"
+	@echo "  make exploit            Generate payload + send to victim"
+	@echo "  make connect-session    Attach to C2 session interactively"
 	@echo ""
 	@echo "Attacker Infrastructure (attacker-infra/):"
 	@echo "  make deploy-attacker    Deploy C2 server to AWS"
 	@echo "  make generate-csv       Generate malicious CSV payload"
-	@echo "  make attach             Attach to C2 session (reads .session_id)"
+	@echo "  make exploit TARGET=url Override victim URL for exploit"
 	@echo ""
 	@echo "Victim Infrastructure (victim-infra/):"
 	@echo "  make deploy-victim      Deploy vulnerable chatbot to AWS"
@@ -63,8 +64,21 @@ deploy-attacker:
 destroy-attacker:
 	cd attacker-infra && $(MAKE) destroy
 
+# Exploit: generate payload + send to victim in one step
+# Usage: make exploit (reads .victim_url) or make exploit TARGET=https://chatbot.victim.com
+exploit:
+	@if [ -n "$(TARGET)" ]; then \
+		cd attacker-infra && $(MAKE) exploit TARGET=$(TARGET); \
+	else \
+		cd attacker-infra && $(MAKE) exploit; \
+	fi
+
+connect-session:
+	cd attacker-infra && $(MAKE) connect-session
+
+# Aliases for backwards compatibility
 operator attach:
-	cd attacker-infra && $(MAKE) attach
+	cd attacker-infra && $(MAKE) connect-session
 
 generate-csv:
 	cd attacker-infra && $(MAKE) generate-csv
@@ -109,11 +123,11 @@ deploy-all: deploy-attacker deploy-victim
 	@echo "Victim Chatbot:"
 	@cd victim-infra && $(MAKE) show-url
 	@echo ""
-	@echo "To run the attack:"
-	@echo "  make attack TARGET=<victim-url>"
+	@echo "To run the exploit:"
+	@echo "  make exploit"
 	@echo ""
-	@echo "Or start the interactive operator shell:"
-	@echo "  make operator"
+	@echo "Then connect to the session:"
+	@echo "  make connect-session"
 	@echo ""
 
 destroy-all:
@@ -145,5 +159,5 @@ demo:
 	@echo "  - Both infrastructures deployed (make deploy-all)"
 	@echo "  - Attacker C2 server running"
 	@echo ""
-	@read -p "Press Enter to start the attack demo..."
-	@$(MAKE) attack TARGET=$$(cd victim-infra/terraform && terraform output -raw chatbot_url)
+	@read -p "Press Enter to start the exploit..."
+	@$(MAKE) exploit
