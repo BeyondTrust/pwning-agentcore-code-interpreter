@@ -4,8 +4,8 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
-variable "ssh_allowed_cidrs" {
-  description = "List of CIDR blocks allowed for SSH access"
+variable "allowed_ingress_cidrs" {
+  description = "List of CIDR blocks allowed for ingress (SSH, API, etc.)"
   type        = list(string)
   default     = ["0.0.0.0/0"]
 }

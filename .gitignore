@@ -28,6 +28,12 @@ tmp/
 # Code interpreter session
 .session_id
 
+# Victim URL (saved by deploy)
+.victim_url
+
+# Local instructions
+CLAUDE.local.md
+
 # Planning
 /docs/local/
 

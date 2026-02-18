@@ -37,10 +37,14 @@ class AgentCoreService:
 
         # Initialize boto3 client for bedrock-agentcore
         # Must use explicit endpoint URL for this service
+        # Use a long read timeout because Code Interpreter sessions can run
+        # for up to 300s and the executeCode call blocks until completion.
+        from botocore.config import Config as BotoConfig
         self.client = boto3.client(
             'bedrock-agentcore',
             region_name=self.region,
-            endpoint_url=f"https://bedrock-agentcore.{self.region}.amazonaws.com"
+            endpoint_url=f"https://bedrock-agentcore.{self.region}.amazonaws.com",
+            config=BotoConfig(read_timeout=600),
         )
 
         # Session tracking

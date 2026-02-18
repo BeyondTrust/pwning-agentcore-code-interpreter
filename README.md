@@ -111,13 +111,26 @@ The enhanced demo shows that an attacker with **NO AWS credentials** to the vict
 5. **Prompt injection** triggers DNS C2 payload execution
 6. **Data exfiltrates** via DNS to attacker's C2 server
 
-### Quick Start (Realistic Demo)
+### Quick Start
 
-**Prerequisites:** Install [uv](https://docs.astral.sh/uv/getting-started/installation/) for Python dependency management.
+**Prerequisites:** 
+- Install [uv](https://docs.astral.sh/uv/getting-started/installation/) for Python dependency management.
+- AWS CLI configured in two separate accounts (one for attacker, one for victim)
+- 
 
 **Terminal 1 - Deploy attacker infrastructure:**
 ```bash
+export DOMAIN_NAME="bt-research-control.com"
+export REGION="us-east-1"
+export BUCKET_NAME="agentcore-hacking"
+cat << EOF >> attacker-infra/terraform/terraform.tfvars
+domain_name = "${DOMAIN_NAME}"
+aws_region = "${REGION}"
+s3_bucket_name = "${BUCKET_NAME}"
+EOF
+
 cd attacker-infra
+export AWS_PROFILE=attacker-account
 make setup    # Install dependencies with uv
 make deploy   # Deploy C2 server to AWS
 ```
@@ -125,19 +138,20 @@ make deploy   # Deploy C2 server to AWS
 **Terminal 2 - Deploy victim infrastructure** (separate AWS account recommended):
 ```bash
 cd victim-infra
+export AWS_PROFILE=victim-account
 make setup    # Install dependencies with uv
 make deploy   # Deploy vulnerable chatbot to AWS
 make show-url # Note the chatbot URL
 ```
 
-**Terminal 3 - Launch the attack** (from repo root):
+**Terminal 3 - Launch the exploit** (from repo root):
 ```bash
-# Generate malicious CSV (session ID saved to attacker-infra/.session_id)
-make generate-csv
+export AWS_PROFILE=attacker-account
+# Generate payload + send to victim in one step (reads .victim_url automatically)
+make exploit
 
-# Upload attacker-infra/malicious_data.csv to the victim chatbot URL
-# Then attach to the session:
-make attach
+# Connect to the C2 session:
+make connect-session
 
 # In the operator shell, run commands:
 # > whoami
@@ -155,11 +169,14 @@ make attach
 - Python 3.11+
 - Terraform installed with the latest provider
 
-### Step 1: Deploy C2 Infrastructure
+### Step 0: Deploy C2 Infrastructure
 
 **Prerequisites:** Install [uv](https://docs.astral.sh/uv/getting-started/installation/) for Python dependency management.
 
-First, edit the `attacker-infra/terraform/terraform.tfvars` file to set your domain name and AWS region:
+First, edit the `attacker-infra/terraform/terraform.tfvars` file to set your domain name and AWS region.
+
+> [!IMPORTANT]
+> Make sure you change the DOMAIN_NAME to match a valid registered domain - and Route53 hosted zone - in your AWS account.
 
 ```bash
 export DOMAIN_NAME="bt-research-control.com"
@@ -184,7 +201,7 @@ make setup
 make deploy
 ```
 
-### Step 2: Generate and Send Malicious Payload
+### Step 1: Generate and Send Malicious Payload
 
 Generate a malicious CSV with embedded payload:
 
@@ -193,20 +210,18 @@ make generate-csv
 ```
 
 Then either:
-- **Automated**: `make attack TARGET=https://victim-chatbot.com`
+- **Automated**: `make exploit TARGET=https://victim-chatbot.com` (or just `make exploit` if `.victim_url` exists)
 - **Manual**: Upload the generated CSV to the victim chatbot web UI
 
-### Step 3: Attach to Session
+### Step 2: Connect to the Code Interpreter Session
 
-The session ID is saved to `.session_id` automatically, so just run:
+The C2 server session ID is saved to `.session_id` automatically. To connect, you can just use this helper:
 
 ```bash
-make attach
+make connect-session
 ```
 
-(Or specify manually: `make attach SESSION=sess_abc123`)
-
-### Step 4: Verify DNS Exfiltration
+### Step 3: Verify DNS Exfiltration
 
 Now that you are in the interactive shell, you can verify that DNS exfiltration is working by executing these example commands.
 

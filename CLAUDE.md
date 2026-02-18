@@ -183,23 +183,24 @@ uv run pytest tests/test_dns_integration.py -v  # End-to-end scenarios
 ```bash
 cd attacker-infra
 
-# Option 1: Attack via HTTP (no victim credentials needed)
-make attack TARGET=https://victim-chatbot.example.com
+# Option 1: Exploit (generate payload + send to victim in one step)
+make exploit                    # Reads victim URL from .victim_url
+make exploit TARGET=https://victim-chatbot.example.com  # Or specify URL
 
 # Option 2: Generate CSV for manual upload
 make generate-csv               # Creates malicious CSV file
 # Then upload to victim's web interface
 
-# Option 3: Direct Code Interpreter access (requires credentials)
-make operator                   # Interactive shell for sending commands
+# Option 3: Connect to an existing session
+make connect-session            # Interactive shell for sending commands
 ```
 
 ### Running the C2 System
 ```bash
 cd attacker-infra
 
-# Terminal 1: Start operator shell (DNS server auto-starts via configure-ec2)
-make operator                   # Interactive shell for sending commands
+# Terminal 1: Connect to session (DNS server auto-starts via configure-ec2)
+make connect-session            # Interactive shell for sending commands
 
 # Terminal 2: Monitor CloudWatch logs (optional)
 make logs                       # Watch DNS queries and exfiltrated data

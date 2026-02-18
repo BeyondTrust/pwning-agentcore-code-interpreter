@@ -11,3 +11,6 @@ domain_name = "your-domain.com"
 # iam_role_name = "dns-shell-sandbox-dns-shell-role"
 # s3_bucket_name = "agentcore-hacking"
 
+# Restrict ingress to specific CIDRs (defaults to 0.0.0.0/0)
+# allowed_ingress_cidrs = ["203.0.113.0/24"]
+

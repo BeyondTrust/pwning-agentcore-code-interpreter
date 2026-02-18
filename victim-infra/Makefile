@@ -122,6 +122,7 @@ show-url:
 	@echo "Victim Chatbot URL:"
 	@cd terraform && terraform output -raw chatbot_url
 	@echo ""
+	@cd terraform && terraform output -raw chatbot_url > ../../.victim_url
 	@echo ""
 
 show-outputs:
@@ -146,6 +147,8 @@ deploy: terraform-deploy docker-push ecs-redeploy
 	@echo "  Victim Infrastructure Deployed!"
 	@echo "=========================================="
 	@$(MAKE) show-url
+	@cd terraform && terraform output -raw chatbot_url > ../../.victim_url
+	@echo "Victim URL saved to .victim_url"
 	@$(MAKE) show-attack-command
 
 # Export environment variables
