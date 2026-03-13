@@ -13,15 +13,15 @@ resource "aws_security_group" "dns_shell" {
 }
 
 # SSH
-resource "aws_security_group_rule" "ssh" {
-  type              = "ingress"
-  from_port         = 22
-  to_port           = 22
-  protocol          = "tcp"
-  cidr_blocks       = var.allowed_ingress_cidrs
-  description       = "SSH"
-  security_group_id = aws_security_group.dns_shell.id
-}
+# resource "aws_security_group_rule" "ssh" {
+#   type              = "ingress"
+#   from_port         = 22
+#   to_port           = 22
+#   protocol          = "tcp"
+#   cidr_blocks       = var.allowed_ingress_cidrs
+#   description       = "SSH"
+#   security_group_id = aws_security_group.dns_shell.id
+# }
 
 # DNS TCP
 resource "aws_security_group_rule" "dns_tcp" {
