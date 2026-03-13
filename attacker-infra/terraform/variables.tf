@@ -47,9 +47,15 @@ variable "tags" {
 }
 
 variable "domain_name" {
-  description = "Domain name for Route53 hosted zone"
+  description = "Domain name for Route53 hosted zone (provide this or hosted_zone_id)"
   type        = string
-  default     = "bt-research-control.com"
+  default     = ""
+}
+
+variable "hosted_zone_id" {
+  description = "Route53 hosted zone ID (used when domain_name is blank)"
+  type        = string
+  default     = ""
 }
 
 variable "resource_suffix" {

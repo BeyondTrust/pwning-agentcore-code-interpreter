@@ -149,7 +149,7 @@ resource "aws_dynamodb_table_item" "customer_1" {
     email         = { S = "alice.johnson@example.com" }
     ssn           = { S = "111-22-3333" }
     credit_card   = { S = "4532-1234-5678-9012" }
-    account_balance = { N = "15750.00" }
+    account_balance = { N = "15750" }
     status        = { S = "PREMIUM" }
   })
 }
@@ -164,7 +164,7 @@ resource "aws_dynamodb_table_item" "customer_2" {
     email         = { S = "bob.martinez@example.com" }
     ssn           = { S = "444-55-6666" }
     credit_card   = { S = "5425-1234-5678-9012" }
-    account_balance = { N = "8250.50" }
+    account_balance = { N = "8250" }
     status        = { S = "STANDARD" }
   })
 }
@@ -179,7 +179,7 @@ resource "aws_dynamodb_table_item" "customer_3" {
     email         = { S = "carol.white@example.com" }
     ssn           = { S = "777-88-9999" }
     credit_card   = { S = "3782-1234-5678-901" }
-    account_balance = { N = "42100.00" }
+    account_balance = { N = "42100" }
     status        = { S = "VIP" }
   })
 }
