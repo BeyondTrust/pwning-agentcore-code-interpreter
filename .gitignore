@@ -17,7 +17,7 @@ venv
 tmp/
 
 # Terraform
-**/.**/
+**/.terraform/
 **/.terraform.lock.hcl
 **/terraform.tfstate*
 **/.terraform.tfstate*
