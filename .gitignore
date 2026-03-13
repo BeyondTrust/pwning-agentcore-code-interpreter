@@ -44,3 +44,6 @@ attacker-infra/malicious_data.csv
 # Environment files (contain AWS profile names)
 .env
 **/.env
+
+# Cloned reference repos
+repos/
