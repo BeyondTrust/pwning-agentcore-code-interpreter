@@ -140,6 +140,14 @@ operator: connect-session
 status:
 	uv run c2 status
 
+# List active C2 sessions
+sessions:
+	uv run c2 sessions
+
+# Full debug dump of C2 server state
+debug:
+	uv run c2 debug
+
 # =============================================================================
 # C2 Server Management
 # =============================================================================
@@ -220,6 +228,8 @@ help:
 	@echo "  make send CMD=x SESSION=x   Send command to session"
 	@echo "  make receive SESSION=x      Get output from session"
 	@echo "  make status                 Check C2 server connectivity"
+	@echo "  make sessions               List active C2 sessions"
+	@echo "  make debug                  Full debug dump of C2 server state"
 	@echo ""
 	@echo "C2 Management:"
 	@echo "  make logs               View C2 server logs"
@@ -232,5 +242,5 @@ help:
 
 .PHONY: setup terraform-init terraform-plan terraform-apply terraform-destroy \
         deploy terraform-yolo configure-ec2 exploit attack generate-csv send receive \
-        connect-session attach operator status logs check-dns update-dns test \
-        verify-protocol clean destroy help env-from-terraform
+        connect-session attach operator status sessions debug logs check-dns update-dns \
+        test verify-protocol clean destroy help env-from-terraform

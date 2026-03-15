@@ -1,12 +1,9 @@
 """
 Victim Chatbot Application - FastAPI Entry Point
 
-This application demonstrates a realistic AI-powered chatbot that uses
-AWS Bedrock AgentCore for CSV analysis. It is INTENTIONALLY VULNERABLE
-to prompt injection attacks for security research purposes.
-
-VULNERABILITY: User input (including CSV content) is passed directly to
-the Code Interpreter without sanitization, enabling prompt injection.
+AI-powered chatbot that uses AWS Bedrock AgentCore for CSV analysis.
+Built for security research — user input (CSV content) is passed to the
+LLM without sanitization, which makes it susceptible to prompt injection.
 """
 
 import logging
@@ -76,20 +73,3 @@ async def root(request: Request):
     )
 
 
-@app.get("/info")
-async def info():
-    """Return application info (useful for reconnaissance)."""
-    return {
-        "application": "AI Data Analyst",
-        "version": "1.0.0",
-        "backend": "AWS Bedrock AgentCore",
-        "features": [
-            "CSV file analysis",
-            "Natural language queries",
-            "Python code execution"
-        ],
-        "endpoints": {
-            "chat": "/chat/",
-            "analyze_csv": "/analyze/csv"
-        }
-    }
