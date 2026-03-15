@@ -177,6 +177,23 @@ def attach(session):
                 break
 
             elif cmd.lower() == "status":
+                # Check session liveness
+                session_list = manager.list_sessions()
+                session_info = next(
+                    (s for s in session_list if s.get("id") == session), None
+                )
+                if session_info:
+                    ago = session_info.get("last_seen_ago", "?")
+                    terminated = session_info.get("terminated", False)
+                    if terminated:
+                        click.echo(f"[!] Session {session}: terminated")
+                    else:
+                        click.echo(f"[*] Session {session}: active (last seen {ago}s ago)")
+                else:
+                    click.echo(
+                        f"[!] Session {session} not found on C2 server"
+                    )
+                # Check pending output
                 outputs = manager.get_output(session, last_output_id)
                 if outputs:
                     for output in outputs:
@@ -214,10 +231,12 @@ def attach(session):
                     got_output = False
                     cmd_output_id = last_output_id
 
+                    tick = 0
                     try:
                         while time.time() - start_time < timeout:
                             outputs = manager.get_output(session, cmd_output_id)
                             if outputs:
+                                click.echo()  # clear progress line
                                 for output in outputs:
                                     click.echo(f"{'-' * 60}")
                                     click.echo("  Output:")
@@ -227,6 +246,13 @@ def attach(session):
                                     last_output_id = output["id"]
                                 got_output = True
                                 break
+                            elapsed = int(time.time() - start_time)
+                            bar = "." * (tick % 8 + 1)
+                            click.echo(
+                                f"\r[*] Waiting for output... {elapsed}s [{bar}]       ",
+                                nl=False,
+                            )
+                            tick += 1
                             time.sleep(1)
                     except KeyboardInterrupt:
                         click.echo("\n[!] Stopped waiting\n")

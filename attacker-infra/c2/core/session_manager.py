@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import Optional
 
+import click
 import requests
 
 from .config import get_config
@@ -87,7 +88,7 @@ class SessionManager:
             )
             return response.status_code == 200
         except Exception as e:
-            print(f"[!] Error sending command: {e}")
+            click.echo(f"[!] Error sending command: {e}", err=True)
             return False
 
     def get_output(self, session_id: str, since_id: int = 0) -> list:
@@ -110,7 +111,7 @@ class SessionManager:
             if response.status_code == 200:
                 return response.json().get("outputs", [])
         except Exception as e:
-            print(f"[!] Error getting output: {e}")
+            click.echo(f"[!] Error getting output: {e}", err=True)
         return []
 
     def terminate_session(self, session_id: str) -> bool:
@@ -131,7 +132,7 @@ class SessionManager:
             )
             return response.status_code == 200
         except Exception as e:
-            print(f"[!] Error terminating session: {e}")
+            click.echo(f"[!] Error terminating session: {e}", err=True)
             return False
 
     def list_sessions(self) -> list:
@@ -149,7 +150,7 @@ class SessionManager:
             if response.status_code == 200:
                 return response.json().get("sessions", [])
         except Exception as e:
-            print(f"[!] Error listing sessions: {e}")
+            click.echo(f"[!] Error listing sessions: {e}", err=True)
         return []
 
     def get_debug_info(self) -> dict:
@@ -168,7 +169,7 @@ class SessionManager:
             if response.status_code == 200:
                 return response.json()
         except Exception as e:
-            print(f"[!] Error getting debug info: {e}")
+            click.echo(f"[!] Error getting debug info: {e}", err=True)
         return {}
 
     def check_connection(self) -> bool:
