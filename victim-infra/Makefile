@@ -68,7 +68,7 @@ terraform-deploy: terraform-yolo
 # =============================================================================
 
 docker-build:
-	cd chatbot && docker build --platform linux/amd64 -t victim-chatbot:latest .
+	cd chatbot && docker build --platform linux/amd64 --no-cache -t victim-chatbot:latest .
 
 docker-run-local:
 	docker run -p 8000:8000 \

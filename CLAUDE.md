@@ -59,8 +59,8 @@ agentcore-sandbox-breakout/
 
 #### 5. FastAPI Chatbot
 - **Location**: `victim-infra/chatbot/`
-- **Purpose**: Publicly-accessible AI chatbot that uses AgentCore Code Interpreter
-- **Vulnerability**: Passes user CSV content directly to Code Interpreter without sanitization
+- **Purpose**: Publicly-accessible AI chatbot that uses a Bedrock LLM (Claude Haiku) with AgentCore Code Interpreter as a tool
+- **Vulnerability**: Passes raw CSV content directly into the LLM prompt without sanitization. The LLM has a code execution tool, so prompt injection in a CSV cell can trick the model into executing arbitrary Python code.
 - **Endpoints**:
   - `POST /analyze/csv` - Upload CSV for analysis (VULNERABLE)
   - `GET /` - Web UI

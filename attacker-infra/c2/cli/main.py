@@ -7,7 +7,7 @@ from c2.core.config import get_config
 from .attack import attack
 from .exploit import exploit
 from .generate import generate_csv
-from .session import attach, receive, send, status
+from .session import attach, debug, receive, send, sessions, status
 
 
 @click.group()
@@ -34,6 +34,8 @@ cli.add_command(send)
 cli.add_command(receive)
 cli.add_command(attach)
 cli.add_command(status)
+cli.add_command(sessions)
+cli.add_command(debug)
 cli.add_command(generate_csv)
 
 

@@ -48,7 +48,7 @@ resource "aws_iam_role" "ecs_task" {
   tags = var.tags
 }
 
-# Allow ECS task to invoke Bedrock AgentCore
+# Allow ECS task to invoke Bedrock models and AgentCore
 resource "aws_iam_role_policy" "ecs_task_bedrock" {
   name = "${var.project_name}-ecs-bedrock-policy"
   role = aws_iam_role.ecs_task.id
@@ -61,6 +61,8 @@ resource "aws_iam_role_policy" "ecs_task_bedrock" {
         Action = [
           "bedrock:InvokeModel",
           "bedrock:InvokeModelWithResponseStream",
+          "bedrock:Converse",
+          "bedrock:ConverseStream",
           "bedrock-agent-runtime:*",
           "bedrock-agentcore:*"
         ]

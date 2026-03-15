@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     # AWS Configuration
     aws_region: str = "us-east-1"
 
+    # Bedrock Model Configuration
+    model_id: str = "us.meta.llama4-scout-17b-instruct-v1:0"
+
     # Code Interpreter Configuration
     code_interpreter_id: str | None = None
     code_interpreter_arn: str | None = None

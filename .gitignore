@@ -47,3 +47,4 @@ attacker-infra/malicious_data.csv
 
 # Cloned reference repos
 repos/
+results.csv

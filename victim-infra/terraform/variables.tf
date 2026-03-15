@@ -10,6 +10,12 @@ variable "project_name" {
   default     = "victim-chatbot"
 }
 
+variable "model_id" {
+  description = "Bedrock model ID for the chatbot LLM"
+  type        = string
+  default     = "us.meta.llama4-scout-17b-instruct-v1:0"
+}
+
 variable "vpc_cidr" {
   description = "CIDR block for VPC"
   type        = string

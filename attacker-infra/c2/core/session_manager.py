@@ -134,6 +134,43 @@ class SessionManager:
             print(f"[!] Error terminating session: {e}")
             return False
 
+    def list_sessions(self) -> list:
+        """
+        List active sessions on the C2 server.
+
+        Returns:
+            List of session dicts with id, last_seen, pending_commands, chunk_count
+        """
+        try:
+            response = requests.get(
+                f"{self.c2_server}/api/sessions",
+                timeout=5,
+            )
+            if response.status_code == 200:
+                return response.json().get("sessions", [])
+        except Exception as e:
+            print(f"[!] Error listing sessions: {e}")
+        return []
+
+    def get_debug_info(self) -> dict:
+        """
+        Get debug diagnostics from the C2 server.
+
+        Returns:
+            Dict with recent_dns_queries, active_sessions, output_buffer,
+            server_uptime
+        """
+        try:
+            response = requests.get(
+                f"{self.c2_server}/api/debug",
+                timeout=5,
+            )
+            if response.status_code == 200:
+                return response.json()
+        except Exception as e:
+            print(f"[!] Error getting debug info: {e}")
+        return {}
+
     def check_connection(self) -> bool:
         """Check if we can connect to the C2 server."""
         try:
