@@ -67,39 +67,6 @@ Large outputs split into multiple chunks (60 chars max per label):
   Chunk 22: 1.22.22.1256.dGVzLXVzLWVhc3QtMS00NDU1NzA5MjEyOTg-.1.sess_abc123.c2.bt-research-control.com
 ```
 
-## Project Structure
-
-This repository now contains two separate infrastructures to demonstrate a realistic attack scenario:
-
-```
-agentcore-sandbox-breakout/
-├── attacker-infra/          # Attacker's AWS account
-│   ├── terraform/           # C2 server infrastructure (EC2, Route53, DNS)
-│   ├── c2/                  # C2 Python package (installable CLI)
-│   │   ├── cli/             # Click CLI commands
-│   │   │   ├── main.py      # CLI entry point
-│   │   │   ├── attack.py    # Attack commands
-│   │   │   └── session.py   # Session management
-│   │   ├── core/            # Core functionality
-│   │   │   ├── attack_client.py     # HTTP client for prompt injection
-│   │   │   ├── payload_generator.py # Malicious CSV generator
-│   │   │   ├── dns_protocol.py      # DNS encoding/decoding
-│   │   │   └── session_manager.py   # C2 session management
-│   │   └── payload/         # Payload for Code Interpreter
-│   │       └── client.py    # DNS C2 client payload
-│   ├── tests/               # Unit and integration tests
-│   ├── pyproject.toml       # Package definition
-│   └── Makefile
-│
-├── victim-infra/            # Victim's AWS account
-│   ├── terraform/           # Chatbot infrastructure (ECS, ALB, AgentCore)
-│   ├── chatbot/             # Vulnerable FastAPI application
-│   └── Makefile
-│
-├── docs/                    # Technical specifications
-└── Makefile                 # Root Makefile for orchestration
-```
-
 ## Realistic Attack Demo (No Credentials Required)
 
 The enhanced demo shows that an attacker with **NO AWS credentials** to the victim's account can exfiltrate sensitive data. The attack flow:
