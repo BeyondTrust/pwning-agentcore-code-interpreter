@@ -85,8 +85,6 @@ class AttackClient:
             c2_domain=self.c2_domain,
             session_id=self.session_id,
             output_path=output_path,
-            injection_row=3,
-            injection_style="technical",
         )
 
         self.log(f"Generated payload: {output_path}", "success")

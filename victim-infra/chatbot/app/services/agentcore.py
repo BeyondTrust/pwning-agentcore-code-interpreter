@@ -9,9 +9,13 @@ trick the model into executing arbitrary code.
 """
 
 import boto3
+import boto3.session
 import logging
+import time
 import uuid
 from typing import Optional
+
+from botocore.config import Config as BotoConfig
 
 from app.config import get_settings
 
@@ -40,7 +44,10 @@ PYTHON_TOOL = {
     }
 }
 
-MAX_TOOL_ITERATIONS = 10
+MAX_TOOL_ITERATIONS = 3
+
+# Shared config for all boto3 clients
+_BOTO_CONFIG = BotoConfig(read_timeout=600)
 
 
 class AgentCoreService:
@@ -53,32 +60,34 @@ class AgentCoreService:
         self.model_id = settings.model_id
         self.code_interpreter_id = settings.code_interpreter_id
         self.code_interpreter_arn = settings.code_interpreter_arn
-
-        from botocore.config import Config as BotoConfig
-
-        long_timeout = BotoConfig(read_timeout=600)
-
-        # Client for invoking the LLM
-        self.bedrock_runtime = boto3.client(
-            "bedrock-runtime",
-            region_name=self.region,
-            config=long_timeout,
-        )
-
-        # Client for Code Interpreter sessions
-        self.agentcore = boto3.client(
-            "bedrock-agentcore",
-            region_name=self.region,
-            endpoint_url=f"https://bedrock-agentcore.{self.region}.amazonaws.com",
-            config=long_timeout,
-        )
-
         self.active_sessions = {}
 
         logger.info("AgentCore service initialized")
         logger.info(f"  Region: {self.region}")
         logger.info(f"  Model: {self.model_id}")
         logger.info(f"  Code Interpreter ID: {self.code_interpreter_id}")
+
+    def _make_clients(self):
+        """Create a fresh boto3 session and clients for this thread.
+
+        boto3 clients created from the default session are not safe to share
+        across threads — concurrent calls can corrupt the underlying SSL
+        connection pool and cause response ordering issues.  Each background
+        task therefore gets its own session + clients.
+        """
+        session = boto3.session.Session()
+        agentcore = session.client(
+            "bedrock-agentcore",
+            region_name=self.region,
+            endpoint_url=f"https://bedrock-agentcore.{self.region}.amazonaws.com",
+            config=_BOTO_CONFIG,
+        )
+        bedrock_runtime = session.client(
+            "bedrock-runtime",
+            region_name=self.region,
+            config=_BOTO_CONFIG,
+        )
+        return agentcore, bedrock_runtime
 
     def chat(self, message: str, session_id: Optional[str] = None) -> dict:
         """Handle a basic chat message."""
@@ -114,21 +123,33 @@ class AgentCoreService:
         if not session_id:
             session_id = f"sess_{uuid.uuid4().hex[:8]}"
 
-        logger.info(f"Starting CSV analysis for session {session_id}")
+        logger.info(f"[{session_id}] Starting CSV analysis ({len(csv_content)} bytes)")
+
+        # Create per-request clients to avoid threading issues with shared
+        # boto3 sessions (concurrent BackgroundTasks corrupt connection pools)
+        agentcore, bedrock_runtime = self._make_clients()
+        logger.info(f"[{session_id}] Created per-request boto3 clients")
 
         try:
-            # Start a Code Interpreter session
-            start_resp = self.agentcore.start_code_interpreter_session(
+            # Step 1: Start a Code Interpreter session
+            logger.info(f"[{session_id}] >> start_code_interpreter_session()")
+            t0 = time.monotonic()
+            start_resp = agentcore.start_code_interpreter_session(
                 codeInterpreterIdentifier=self.code_interpreter_id,
                 name=f"session-{session_id}",
                 sessionTimeoutSeconds=3600,
             )
             ci_session_id = start_resp["sessionId"]
             self.active_sessions[session_id] = ci_session_id
-            logger.info(f"Code Interpreter session: {ci_session_id}")
+            logger.info(
+                f"[{session_id}] << start_code_interpreter_session() "
+                f"-> {ci_session_id} ({time.monotonic() - t0:.1f}s)"
+            )
 
-            # Write the CSV to the sandbox so the model can read it with pandas
-            self.agentcore.invoke_code_interpreter(
+            # Step 2: Write CSV to sandbox
+            logger.info(f"[{session_id}] >> invoke(writeFiles, {len(csv_content)} bytes)")
+            t0 = time.monotonic()
+            agentcore.invoke_code_interpreter(
                 codeInterpreterIdentifier=self.code_interpreter_id,
                 sessionId=ci_session_id,
                 name="writeFiles",
@@ -136,37 +157,55 @@ class AgentCoreService:
                     "content": [{"path": "data.csv", "text": csv_content}]
                 },
             )
-
-            # Build analysis prompt with CSV content inline
-            prompt = (
-                f"You are a data analyst. The user uploaded a CSV file for analysis. "
-                f"The file is saved at data.csv.\n\n"
-                f"User's question: {user_message}\n\n"
-                f"Here is the CSV data:\n\n{csv_content}\n\n"
-                f"Use the execute_python tool to analyze this data with pandas "
-                f"and answer the user's question."
+            logger.info(
+                f"[{session_id}] << invoke(writeFiles) ({time.monotonic() - t0:.1f}s)"
             )
 
-            # Send to Bedrock LLM with code execution tool
+            # Step 3: Build analysis prompt — CSV is on disk, not inlined
+            prompt = (
+                f"You are a data analyst. The user uploaded a CSV file "
+                f"saved at data.csv. Follow the user's instructions.\n\n"
+                f"User's instructions: {user_message}"
+            )
+
+            # Step 4: LLM agentic loop
             messages = [{"role": "user", "content": [{"text": prompt}]}]
+            logger.info(
+                f"[{session_id}] Entering LLM loop (model={self.model_id}, "
+                f"prompt={len(prompt)} chars)"
+            )
 
             for iteration in range(MAX_TOOL_ITERATIONS):
-                response = self.bedrock_runtime.converse(
+                logger.info(
+                    f"[{session_id}] >> converse() iteration {iteration + 1}"
+                )
+                t0 = time.monotonic()
+                response = bedrock_runtime.converse(
                     modelId=self.model_id,
                     messages=messages,
                     toolConfig={"tools": [PYTHON_TOOL]},
                 )
+                elapsed = time.monotonic() - t0
 
+                stop_reason = response["stopReason"]
                 assistant_msg = response["output"]["message"]
                 messages.append(assistant_msg)
+                logger.info(
+                    f"[{session_id}] << converse() stopReason={stop_reason} "
+                    f"({elapsed:.1f}s)"
+                )
 
-                if response["stopReason"] != "tool_use":
+                if stop_reason != "tool_use":
                     # Model finished — extract text response
                     text_parts = [
                         block["text"]
                         for block in assistant_msg["content"]
                         if "text" in block
                     ]
+                    logger.info(
+                        f"[{session_id}] Analysis complete "
+                        f"({len(text_parts)} text blocks)"
+                    )
                     return {
                         "response": "\n".join(text_parts) or "Analysis complete.",
                         "session_id": session_id,
@@ -183,12 +222,13 @@ class AgentCoreService:
                     if not code:
                         continue
                     logger.info(
-                        f"LLM executing code (iteration {iteration + 1}): "
-                        f"{code[:100]}..."
+                        f"[{session_id}] >> executeCode (iteration {iteration + 1}, "
+                        f"{len(code)} chars): {code[:200]}..."
                     )
 
                     try:
-                        exec_resp = self.agentcore.invoke_code_interpreter(
+                        t0 = time.monotonic()
+                        exec_resp = agentcore.invoke_code_interpreter(
                             codeInterpreterIdentifier=self.code_interpreter_id,
                             sessionId=ci_session_id,
                             name="executeCode",
@@ -196,10 +236,14 @@ class AgentCoreService:
                         )
                         output = self._read_exec_output(exec_resp)
                         logger.info(
-                            f"Code execution output ({len(output)} chars): "
-                            f"{output[:2000]}"
+                            f"[{session_id}] << executeCode ({time.monotonic() - t0:.1f}s, "
+                            f"{len(output)} chars): {output[:2000]}"
                         )
                     except Exception as e:
+                        logger.error(
+                            f"[{session_id}] !! executeCode failed: {e}",
+                            exc_info=True,
+                        )
                         output = f"Error: {e}"
 
                     tool_results.append(
@@ -213,6 +257,7 @@ class AgentCoreService:
 
                 messages.append({"role": "user", "content": tool_results})
 
+            logger.info(f"[{session_id}] Hit max iterations ({MAX_TOOL_ITERATIONS})")
             return {
                 "response": "Analysis reached maximum iterations.",
                 "session_id": session_id,
@@ -315,7 +360,8 @@ class AgentCoreService:
         ci_session_id = self.active_sessions[session_id]
 
         try:
-            self.agentcore.end_code_interpreter_session(
+            agentcore, _ = self._make_clients()
+            agentcore.end_code_interpreter_session(
                 codeInterpreterIdentifier=self.code_interpreter_id,
                 sessionId=ci_session_id,
             )
