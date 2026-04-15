@@ -71,6 +71,8 @@ Large outputs split into multiple chunks (60 chars max per label):
 
 ### Attack and Protocol Architecture
 
+![S3 AgentCore](docs/images/architecture_s3.png)
+
 The attack flow works as follows:
 
 1. **Command Delivery**: Operator writes a JSON command object to `sessions/{session_id}/cmd` in their S3 bucket. The payload polls this object via a presigned GET URL (embedded at generation time, 7-day expiry). The command object includes a presigned PUT URL so the payload knows where to upload its response.
