@@ -1,0 +1,6 @@
+# Example terraform.tfvars file
+# Copy this to terraform.tfvars and customize for your environment
+
+# Uncomment and customize these if you want to override defaults
+# aws_region = "us-east-1"
+# s3_c2_bucket_prefix = "agentcore-c2-sessions-"
