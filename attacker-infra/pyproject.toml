@@ -16,7 +16,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest==7.4.3",
+    "pytest==9.0.3",
     "dnslib==0.9.24",
 ]
 
